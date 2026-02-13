@@ -1,0 +1,11 @@
+{
+  "name": "@nicelist/infra",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "plan": "terraform -chdir=terraform plan",
+    "apply": "terraform -chdir=terraform apply",
+    "validate": "terraform -chdir=terraform validate",
+    "destroy": "terraform -chdir=terraform destroy"
+  }
+}
