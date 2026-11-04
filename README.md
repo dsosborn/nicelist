@@ -2,9 +2,8 @@
 
 A Turborepo monorepo containing:
 
-- **apps/frontend** – Next.js application
-- **apps/backend** – Express API server
-- **infra** – Terraform infrastructure as code
+- **apps/frontend** – Next.js application (static export)
+- **infra** – Terraform infrastructure (Cognito, DynamoDB, AppSync, Lambda)
 
 ## Prerequisites
 
@@ -30,7 +29,6 @@ pnpm dev
 
 # Or run individually:
 pnpm --filter @nicelist/frontend dev   # Frontend on http://localhost:3000
-pnpm --filter @nicelist/backend dev    # Backend on http://localhost:3001
 ```
 
 ## Build
@@ -54,4 +52,4 @@ pnpm run plan
 pnpm run apply
 ```
 
-Add your cloud provider (AWS, GCP, etc.) to `infra/terraform/versions.tf` and define resources in `infra/terraform/main.tf`.
+Add your cloud provider (AWS, GCP, etc.) to `infra/versions.tf` and define resources in `infra/*.tf`. Server-side logic is handled by Lambda functions (e.g. as AppSync resolvers).

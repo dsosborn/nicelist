@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node --test infra/domain/rules.test.mjs
+      - run: node infra/scripts/bundle-resolvers.mjs
+      - run: pnpm --filter @nicelist/frontend exec tsc --noEmit
+      - run: pnpm --filter @nicelist/frontend lint
+
+  plan:
+    needs: test
+    if: github.event_name == 'pull_request' && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: hashicorp/setup-terraform@v3
+      - run: node infra/scripts/bundle-resolvers.mjs
+      - run: terraform -chdir=infra init -input=false -backend=false
+      - run: terraform -chdir=infra plan -input=false
+        env:
+          TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
+          TF_VAR_aws_profile: ""
+
+  deploy:
+    needs: test
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+      - uses: hashicorp/setup-terraform@v3
+      - run: pnpm install --frozen-lockfile
+      - run: node infra/scripts/bundle-resolvers.mjs
+      - run: terraform -chdir=infra init -input=false -backend=false
+      - run: terraform -chdir=infra apply -input=false -auto-approve
+        env:
+          TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
+          TF_VAR_aws_profile: ""
+      - name: Publish the static export
+        env:
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ vars.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_APP_CLIENT_ID: ${{ vars.NEXT_PUBLIC_COGNITO_APP_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_REGION: us-east-1
+          NEXT_PUBLIC_APPSYNC_ENDPOINT: ${{ vars.NEXT_PUBLIC_APPSYNC_ENDPOINT }}
+          NEXT_PUBLIC_APPSYNC_API_KEY: ${{ vars.NEXT_PUBLIC_APPSYNC_API_KEY }}
+          NEXT_PUBLIC_COGNITO_DOMAIN: ${{ vars.NEXT_PUBLIC_COGNITO_DOMAIN }}
+          NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN: https://nicelist.co/login
+          NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT: https://nicelist.co/login
+        run: |
+          pnpm --filter @nicelist/frontend build
+          aws s3 sync apps/frontend/out "s3://${{ vars.SITE_BUCKET }}" --delete
+          aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"

@@ -1,0 +1,5 @@
+bucket         = "nicelist-tfstate-ACCOUNT_ID"
+key            = "nicelist/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "nicelist-tfstate-lock"
+encrypt        = true

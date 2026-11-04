@@ -1,0 +1,9 @@
+aws_profile          = "niceList"
+google_client_id     = ""
+# Stored in SSM at /nicelist/google-client-secret. Set this once; later applies keep the stored value.
+google_client_secret = ""
+# amazon_associate_tag = ""
+
+# Optional. Defaults match the frontend redirect at /login.
+# oauth_callback_urls = ["http://localhost:3000/login"]
+# oauth_logout_urls   = ["http://localhost:3000/login"]

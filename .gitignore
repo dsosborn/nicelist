@@ -20,6 +20,10 @@ infra/**/*.tfstate
 infra/**/*.tfstate.*
 infra/**/*.tfvars
 !infra/**/*.tfvars.example
+infra/.schema.graphql
+infra/.schema.base64
+infra/lambda/*.zip
+infra/resolvers/built/
 
 # IDE
 .idea

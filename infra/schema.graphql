@@ -1,0 +1,316 @@
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+enum Visibility @aws_cognito_user_pools @aws_api_key {
+  PUBLIC
+  FRIENDS
+  PRIVATE
+}
+
+enum GiftKind @aws_cognito_user_pools @aws_api_key {
+  PRODUCT
+  CUSTOM
+  EXPERIENCE
+  MEMBERSHIP
+}
+
+enum TimingPhrase @aws_cognito_user_pools @aws_api_key {
+  ANYTIME
+  THIS_SEASON
+  NEXT_SEASON
+  PICK_LATER
+}
+
+enum MembershipPhrase @aws_cognito_user_pools @aws_api_key {
+  ANNUAL
+  SEASON_PACKAGE
+  DIGITAL
+}
+
+enum ClaimStatus @aws_cognito_user_pools @aws_api_key {
+  OPEN
+  RESERVED
+  PURCHASED
+}
+
+enum PriceBand {
+  UNDER_25
+  MID
+  OVER_75
+}
+
+enum PersonKind {
+  FRIEND
+  CHILD
+  NAME
+}
+
+type Profile @aws_cognito_user_pools {
+  id: ID!
+  displayName: String!
+  email: String!
+}
+
+type OwnerSlot @aws_cognito_user_pools {
+  index: Int!
+  status: ClaimStatus!
+}
+
+type OwnerGift @aws_cognito_user_pools {
+  id: ID!
+  kind: GiftKind!
+  title: String
+  url: String
+  price: Int
+  notes: String
+  quantity: Int!
+  timingPhrase: TimingPhrase
+  membershipPhrase: MembershipPhrase
+  createdAt: String
+  slots: [OwnerSlot!]
+  shopperSlots: [ShopperSlot!]
+  openCount: Int
+}
+
+type OwnerListSummary @aws_cognito_user_pools {
+  id: ID!
+  name: String!
+  visibility: Visibility!
+  revealedAt: String
+  shareToken: String!
+  recipientId: ID!
+  recipientName: String!
+  isChild: Boolean!
+}
+
+type OwnerList @aws_cognito_user_pools {
+  id: ID!
+  name: String!
+  visibility: Visibility!
+  revealedAt: String
+  shareToken: String!
+  recipientId: ID!
+  recipientName: String!
+  isChild: Boolean!
+  managing: Boolean!
+  gifts: [OwnerGift!]!
+}
+
+type ShopperSlot @aws_cognito_user_pools {
+  index: Int!
+  status: ClaimStatus!
+  shopperName: String
+  shopperNote: String
+  claimId: ID
+  mine: Boolean!
+}
+
+type ShopperGift @aws_cognito_user_pools {
+  id: ID!
+  kind: GiftKind!
+  title: String
+  url: String
+  price: Int
+  notes: String
+  quantity: Int!
+  timingPhrase: TimingPhrase
+  membershipPhrase: MembershipPhrase
+  createdAt: String
+  slots: [ShopperSlot!]!
+  openCount: Int!
+}
+
+type ShopperList @aws_cognito_user_pools {
+  id: ID!
+  name: String!
+  recipientName: String!
+  visibility: Visibility!
+  revealed: Boolean!
+  gifts: [ShopperGift!]!
+  openCount: Int!
+  commissionDisclosure: Boolean!
+}
+
+type GuestGift @aws_api_key {
+  id: ID!
+  kind: GiftKind!
+  title: String
+  url: String
+  price: Int
+  notes: String
+  quantity: Int!
+  timingPhrase: TimingPhrase
+  membershipPhrase: MembershipPhrase
+  createdAt: String
+  openCount: Int!
+  reservedCount: Int!
+  purchasedCount: Int!
+}
+
+type GuestList @aws_api_key {
+  name: String!
+  recipientName: String!
+  gifts: [GuestGift!]!
+  commissionDisclosure: Boolean!
+}
+
+type FriendPerson @aws_cognito_user_pools {
+  userId: ID!
+  displayName: String!
+}
+
+type FriendsView @aws_cognito_user_pools {
+  friends: [FriendPerson!]!
+  incoming: [FriendPerson!]!
+  outgoing: [FriendPerson!]!
+}
+
+type ShoppingPerson @aws_cognito_user_pools {
+  id: ID!
+  name: String!
+  kind: PersonKind!
+  refId: ID
+  standingNote: String
+}
+
+type PlannedGift @aws_cognito_user_pools {
+  id: ID!
+  personId: ID!
+  kind: GiftKind!
+  title: String
+  url: String
+  price: Int
+  notes: String
+  timingPhrase: TimingPhrase
+  membershipPhrase: MembershipPhrase
+  purchased: Boolean!
+  againNextYear: Boolean!
+}
+
+type ShoppingList @aws_cognito_user_pools {
+  name: String!
+  people: [ShoppingPerson!]!
+  plannedGifts: [PlannedGift!]!
+  againClaimIds: [ID!]!
+  totalCents: Int!
+}
+
+type ShoppingPersonGifts @aws_cognito_user_pools {
+  personId: ID!
+  listId: ID
+  gifts: [ShopperGift!]!
+  openCount: Int!
+}
+
+type GiftIdea @aws_cognito_user_pools {
+  title: String!
+  price: Int!
+  reason: String!
+  kind: GiftKind!
+  timingPhrase: TimingPhrase
+  membershipPhrase: MembershipPhrase
+  ratingLine: String
+}
+
+type IdeaResult @aws_cognito_user_pools {
+  ideas: [GiftIdea!]!
+  message: String
+}
+
+type ReceivedGift @aws_cognito_user_pools {
+  id: ID!
+  title: String!
+  stars: Int
+  ratingLine: String
+}
+
+type Query {
+  me: Profile! @aws_cognito_user_pools
+  myLists: [OwnerListSummary!]! @aws_cognito_user_pools
+  myList(id: ID!): OwnerList @aws_cognito_user_pools
+  guestList(token: String!): GuestList @aws_api_key
+  shopList(token: String!): ShopperList @aws_cognito_user_pools
+  friends: FriendsView! @aws_cognito_user_pools
+  shoppingList: ShoppingList! @aws_cognito_user_pools
+  shoppingPerson(personId: ID!): ShoppingPersonGifts @aws_cognito_user_pools
+  receivedGifts: [ReceivedGift!]! @aws_cognito_user_pools
+}
+
+type Mutation {
+  updateProfile(displayName: String!): Profile! @aws_cognito_user_pools
+  createList(name: String!): OwnerListSummary! @aws_cognito_user_pools
+  renameList(id: ID!, name: String!): OwnerListSummary! @aws_cognito_user_pools
+  setListVisibility(id: ID!, visibility: Visibility!): OwnerListSummary! @aws_cognito_user_pools
+  rotateShareToken(id: ID!): OwnerListSummary! @aws_cognito_user_pools
+  deleteList(id: ID!): OwnerListSummary! @aws_cognito_user_pools
+  revealList(id: ID!): OwnerList! @aws_cognito_user_pools
+  addChild(name: String!): OwnerListSummary! @aws_cognito_user_pools
+  removeChild(childId: ID!): Boolean! @aws_cognito_user_pools
+  inviteCoManager(childId: ID!, email: String!): Boolean! @aws_cognito_user_pools
+  removeCoManager(childId: ID!, userId: ID!): Boolean! @aws_cognito_user_pools
+  addGift(
+    listId: ID!
+    kind: GiftKind!
+    title: String
+    url: String
+    price: Int
+    notes: String
+    quantity: Int
+    timingPhrase: TimingPhrase
+    membershipPhrase: MembershipPhrase
+  ): OwnerGift! @aws_cognito_user_pools
+  updateGift(
+    listId: ID!
+    id: ID!
+    title: String
+    url: String
+    price: Int
+    notes: String
+    quantity: Int
+    timingPhrase: TimingPhrase
+    membershipPhrase: MembershipPhrase
+  ): OwnerGift! @aws_cognito_user_pools
+  deleteGift(listId: ID!, id: ID!): OwnerGift! @aws_cognito_user_pools
+  reserveGift(listId: ID!, giftId: ID!, note: String): ShopperGift! @aws_cognito_user_pools
+  setPurchased(listId: ID!, giftId: ID!, slot: Int!, purchased: Boolean!, note: String): ShopperGift! @aws_cognito_user_pools
+  releaseGift(listId: ID!, giftId: ID!, slot: Int!): ShopperGift! @aws_cognito_user_pools
+  sendFriendRequest(email: String!): FriendsView! @aws_cognito_user_pools
+  acceptFriendRequest(userId: ID!): FriendsView! @aws_cognito_user_pools
+  declineFriendRequest(userId: ID!): FriendsView! @aws_cognito_user_pools
+  cancelFriendRequest(userId: ID!): FriendsView! @aws_cognito_user_pools
+  removeFriend(userId: ID!): FriendsView! @aws_cognito_user_pools
+  renameShoppingList(name: String!): ShoppingList! @aws_cognito_user_pools
+  addShoppingPerson(name: String!, kind: PersonKind!, refId: ID): ShoppingPerson! @aws_cognito_user_pools
+  removeShoppingPerson(personId: ID!): Boolean! @aws_cognito_user_pools
+  setStandingNote(personId: ID!, note: String!): ShoppingPerson! @aws_cognito_user_pools
+  addPlannedGift(
+    personId: ID!
+    kind: GiftKind!
+    title: String
+    url: String
+    price: Int
+    notes: String
+    timingPhrase: TimingPhrase
+    membershipPhrase: MembershipPhrase
+  ): PlannedGift! @aws_cognito_user_pools
+  updatePlannedGift(
+    personId: ID!
+    id: ID!
+    title: String
+    url: String
+    price: Int
+    notes: String
+    timingPhrase: TimingPhrase
+    membershipPhrase: MembershipPhrase
+  ): PlannedGift! @aws_cognito_user_pools
+  deletePlannedGift(personId: ID!, id: ID!): PlannedGift! @aws_cognito_user_pools
+  setPlannedPurchased(personId: ID!, id: ID!, purchased: Boolean!): PlannedGift! @aws_cognito_user_pools
+  setAgainNextYear(claimId: ID!, personId: ID!, on: Boolean!): Boolean! @aws_cognito_user_pools
+  deleteShoppingList: Boolean! @aws_cognito_user_pools
+  askForIdeas(listId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools
+  askForShoppingIdeas(personId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools
+  rateGift(listId: ID!, giftId: ID!, stars: Int!): ReceivedGift! @aws_cognito_user_pools
+  rateSuggestion(id: ID!, stars: Int!): ReceivedGift! @aws_cognito_user_pools
+}
