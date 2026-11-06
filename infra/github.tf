@@ -1,7 +1,7 @@
 variable "github_repository" {
   description = "GitHub repository allowed to deploy, as owner/name"
   type        = string
-  default     = ""
+  default     = "dsosborn/nicelist"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -45,36 +45,52 @@ resource "aws_iam_role_policy" "github_deploy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid      = "SiteAndStateBuckets"
         Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
-        Resource = aws_s3_bucket.site[0].arn
+        Action   = ["s3:*"]
+        Resource = [
+          aws_s3_bucket.site[0].arn,
+          "${aws_s3_bucket.site[0].arn}/*",
+          aws_s3_bucket.tfstate[0].arn,
+          "${aws_s3_bucket.tfstate[0].arn}/*",
+        ]
       },
       {
+        Sid      = "ProjectDynamoTables"
         Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        Resource = "${aws_s3_bucket.site[0].arn}/*"
+        Action   = ["dynamodb:*"]
+        Resource = [
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-*",
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-*/index/*",
+        ]
       },
       {
+        Sid      = "ProjectIamRoles"
         Effect   = "Allow"
-        Action   = ["cloudfront:CreateInvalidation"]
-        Resource = aws_cloudfront_distribution.site[0].arn
+        Action   = ["iam:*"]
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.project_name}-*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com",
+        ]
       },
       {
+        Sid      = "ProjectSsm"
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:PutParameter", "ssm:DescribeParameters", "ssm:ListTagsForResource"]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}*"
+      },
+      {
+        Sid    = "ManagedStackServices"
         Effect = "Allow"
         Action = [
           "cognito-idp:*",
           "appsync:*",
-          "dynamodb:*",
-          "s3:*",
           "cloudfront:*",
           "route53:*",
           "acm:*",
           "ses:*",
           "lambda:*",
           "logs:*",
-          "ssm:GetParameter",
-          "ssm:PutParameter",
-          "iam:*",
           "bedrock:InvokeModel",
           "bedrock:Converse",
         ]

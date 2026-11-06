@@ -5,6 +5,13 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "codegen": "node infra/scripts/generate-types.mjs",
+    "test": "node --test infra/domain/rules.test.mjs && pnpm --filter @nicelist/frontend test:unit && pnpm --filter @nicelist/extension test:unit",
+    "test:unit": "pnpm --filter @nicelist/frontend test:unit && pnpm --filter @nicelist/extension test:unit",
+    "test:ct": "pnpm --filter @nicelist/frontend test:ct",
+    "test:e2e": "pnpm --filter @nicelist/frontend test:e2e",
+    "test:smoke": "pnpm --filter @nicelist/frontend test:smoke",
+    "storybook": "pnpm --filter @nicelist/frontend storybook",
     "clean": "turbo clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },

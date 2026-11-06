@@ -10,6 +10,7 @@
     "test:unit": "vitest run",
     "test:ct": "playwright test -c playwright.ct.config.ts",
     "test:e2e": "playwright test",
+    "test:smoke": "playwright test -c playwright.smoke.config.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build -o storybook-static"
   },

@@ -14,7 +14,7 @@ export function request(ctx) {
 export function response(ctx) {
   const ideas = ctx.stash.ideaResult && ctx.stash.ideaResult.ideas ? ctx.stash.ideaResult.ideas : [];
   const data = ctx.result && ctx.result.data ? ctx.result.data : {};
-  const rows = data[tbl("ratings")] || [];
+  const rows = (data[tbl("ratings")] || []).filter((item) => item);
   const lines = {};
   rows.forEach((row) => {
     lines[row.sk] = ratingLine(row.ratingCount, row.ratingSum);

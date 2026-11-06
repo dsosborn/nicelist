@@ -38,7 +38,7 @@ export function request(ctx) {
 
 export function response(ctx) {
   const data = ctx.result && ctx.result.data ? ctx.result.data : {};
-  const rows = data[tbl("profiles")] || [];
+  const rows = (data[tbl("profiles")] || []).filter((item) => item);
   const map = {};
   rows.forEach((row) => {
     if (row.userId && row.displayName) map[row.userId] = row.displayName;

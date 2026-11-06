@@ -20,8 +20,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node --test infra/domain/rules.test.mjs
       - run: node infra/scripts/bundle-resolvers.mjs
+      - run: node infra/scripts/generate-types.mjs --check
       - run: pnpm --filter @nicelist/frontend exec tsc --noEmit
       - run: pnpm --filter @nicelist/frontend lint
+      - run: pnpm --filter @nicelist/extension lint
+      - run: pnpm test:unit
+      - run: pnpm --filter @nicelist/extension build
+      - run: pnpm --filter @nicelist/frontend exec playwright install --with-deps chromium
+      - run: pnpm test:ct
+      - run: pnpm test:e2e
 
   plan:
     needs: test
@@ -30,6 +37,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,6 +48,8 @@ jobs:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
       - run: node infra/scripts/bundle-resolvers.mjs
       - run: |
           terraform -chdir=infra init -input=false \
@@ -48,15 +58,53 @@ jobs:
             -backend-config="region=us-east-1" \
             -backend-config="dynamodb_table=${{ vars.TFSTATE_LOCK_TABLE }}" \
             -backend-config="encrypt=true"
-      - run: terraform -chdir=infra plan -input=false
+      - name: Plan dev and default workspaces
         env:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           TF_VAR_aws_profile: ""
+        run: |
+          terraform -chdir=infra workspace select dev
+          terraform -chdir=infra plan -input=false -no-color > plan-dev.txt
+          terraform -chdir=infra workspace select default
+          terraform -chdir=infra plan -input=false -no-color > plan-prod.txt
+      - name: Post Terraform plan comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("node:fs");
+            const dev = fs.readFileSync("plan-dev.txt", "utf8").slice(-28000);
+            const prod = fs.readFileSync("plan-prod.txt", "utf8").slice(-28000);
+            const marker = "<!-- nicelist-terraform-plan -->";
+            const body = `${marker}\n### Terraform plan\n<details><summary>dev workspace</summary>\n\n\`\`\`\n${dev}\n\`\`\`\n</details>\n<details><summary>default (production) workspace</summary>\n\n\`\`\`\n${prod}\n\`\`\`\n</details>`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
   deploy:
     needs: test
     if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && vars.AWS_DEPLOY_ROLE_ARN != ''
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     permissions:
       id-token: write
       contents: read
@@ -83,10 +131,15 @@ jobs:
             -backend-config="region=us-east-1" \
             -backend-config="dynamodb_table=${{ vars.TFSTATE_LOCK_TABLE }}" \
             -backend-config="encrypt=true"
-      - run: terraform -chdir=infra apply -input=false -auto-approve
+      - name: Apply dev workspace then production
         env:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
           TF_VAR_aws_profile: ""
+        run: |
+          terraform -chdir=infra workspace select dev
+          terraform -chdir=infra apply -input=false -auto-approve
+          terraform -chdir=infra workspace select default
+          terraform -chdir=infra apply -input=false -auto-approve
       - name: Publish the static export
         env:
           NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ vars.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
@@ -97,7 +150,17 @@ jobs:
           NEXT_PUBLIC_COGNITO_DOMAIN: ${{ vars.NEXT_PUBLIC_COGNITO_DOMAIN }}
           NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN: https://nicelist.co/login
           NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT: https://nicelist.co/login
+          NEXT_PUBLIC_GTM_ID: ${{ vars.NEXT_PUBLIC_GTM_ID }}
         run: |
           pnpm --filter @nicelist/frontend build
           aws s3 sync apps/frontend/out "s3://${{ vars.SITE_BUCKET }}" --delete
           aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
+      - name: Run Playwright smoke tests against production
+        env:
+          SMOKE_BASE_URL: https://nicelist.co
+          SMOKE_LIST_TOKEN: ${{ secrets.SMOKE_LIST_TOKEN }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+        run: |
+          pnpm --filter @nicelist/frontend exec playwright install --with-deps chromium
+          pnpm test:smoke

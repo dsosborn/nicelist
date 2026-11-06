@@ -53,3 +53,8 @@ output "tfstate_lock_table" {
   description = "DynamoDB lock table for remote Terraform state"
   value       = local.is_prod ? aws_dynamodb_table.tfstate_lock[0].name : null
 }
+
+output "github_deploy_role_arn" {
+  description = "IAM role ARN assumed by GitHub Actions via OIDC"
+  value       = local.is_prod && var.github_repository != "" ? aws_iam_role.github_deploy[0].arn : null
+}
