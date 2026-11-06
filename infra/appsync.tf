@@ -124,6 +124,17 @@ resource "aws_appsync_datasource" "ratings" {
   }
 }
 
+resource "aws_appsync_datasource" "pokes" {
+  api_id           = aws_appsync_graphql_api.main.id
+  name             = "PokesTable"
+  type             = "AMAZON_DYNAMODB"
+  service_role_arn = aws_iam_role.appsync_dynamodb.arn
+
+  dynamodb_config {
+    table_name = aws_dynamodb_table.pokes.name
+  }
+}
+
 resource "aws_appsync_datasource" "ideas" {
   api_id           = aws_appsync_graphql_api.main.id
   name             = "IdeasLambda"
@@ -181,6 +192,8 @@ resource "aws_iam_role_policy" "appsync_dynamodb" {
         "${aws_dynamodb_table.shopping.arn}/index/*",
         aws_dynamodb_table.ratings.arn,
         "${aws_dynamodb_table.ratings.arn}/index/*",
+        aws_dynamodb_table.pokes.arn,
+        "${aws_dynamodb_table.pokes.arn}/index/*",
       ]
     }]
   })
@@ -223,6 +236,7 @@ locals {
     claims        = aws_appsync_datasource.claims.name
     shopping      = aws_appsync_datasource.shopping.name
     ratings       = aws_appsync_datasource.ratings.name
+    pokes         = aws_appsync_datasource.pokes.name
     ideas         = aws_appsync_datasource.ideas.name
   }
 }

@@ -1,8 +1,12 @@
 import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
-  const recipientId = ctx.stash.list ? ctx.stash.list.recipientId : ctx.stash.userId;
   if (ctx.stash.notFound) runtime.earlyReturn({ items: [] });
+  if (ctx.stash.shape === "received" && !ctx.stash.listId) {
+    ctx.stash.received = [];
+    runtime.earlyReturn({ items: [] });
+  }
+  const recipientId = ctx.stash.list ? ctx.stash.list.recipientId : ctx.stash.userId;
   return {
     operation: "Query",
     query: {
@@ -22,6 +26,7 @@ export function response(ctx) {
       ctx.stash.claims || [],
       inbox,
       ctx.stash.ratingRows,
+      !!ctx.stash.listId,
     );
   }
   return ctx.stash.ratingRows;

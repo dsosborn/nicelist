@@ -37,11 +37,25 @@ export function response(ctx) {
   const stash = ctx.stash;
   if (stash.shape === "myList") {
     if (!stash.list || stash.notFound) return null;
-    return shapeMyList(stash.list, stash.gifts || [], stash.claims || [], stash.userId, stash.associateTag);
+    return shapeMyList(
+      stash.list,
+      stash.gifts || [],
+      stash.claims || [],
+      stash.userId,
+      stash.associateTag,
+      stash.pokes || [],
+      stash.profiles || {},
+    );
   }
   if (stash.shape === "guest") {
     if (!stash.list || stash.notFound) return null;
-    return shapeGuestList(stash.list, stash.gifts || [], stash.claims || [], stash.associateTag);
+    return shapeGuestList(
+      stash.list,
+      stash.gifts || [],
+      stash.claims || [],
+      stash.associateTag,
+      stash.profiles || {},
+    );
   }
   if (stash.shape === "shop") {
     if (!stash.list || stash.notFound) return null;
@@ -52,6 +66,8 @@ export function response(ctx) {
       stash.userId,
       stash.friendIds || [],
       stash.associateTag,
+      stash.pokes || [],
+      stash.profiles || {},
     );
   }
   if (stash.shape === "friends") return shapeFriends(stash.rows || []);
@@ -64,6 +80,8 @@ export function response(ctx) {
       stash.claims || [],
       stash.userId,
       stash.associateTag,
+      stash.pokes || [],
+      stash.profiles || {},
     );
   }
   if (stash.shape === "ideas") {

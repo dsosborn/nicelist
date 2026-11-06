@@ -1,17 +1,24 @@
 import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
-  if (ctx.info.fieldName !== "setPlannedPurchased" || !ctx.args.purchased) runtime.earlyReturn(null);
+  if (ctx.info.fieldName !== "setPlannedPurchased") runtime.earlyReturn(null);
   const rows = ctx.stash.rows || [];
   const plan = rows.find((row) => row.sk === "PLAN#" + ctx.args.personId + "#" + ctx.args.id) || null;
   const person = rows.find((row) => row.sk === "PERSON#" + ctx.args.personId) || null;
   if (!plan || !person || !person.refId) runtime.earlyReturn(null);
+  const key = util.dynamodb.toMapValues({
+    recipientId: person.refId,
+    sk: "INBOX#" + ctx.args.id,
+  });
+  if (!ctx.args.purchased) {
+    return {
+      operation: "DeleteItem",
+      key: key,
+    };
+  }
   return {
     operation: "PutItem",
-    key: util.dynamodb.toMapValues({
-      recipientId: person.refId,
-      sk: "INBOX#" + ctx.args.id,
-    }),
+    key: key,
     attributeValues: util.dynamodb.toMapValues(
       defined({
         title: plan.title || "A gift",

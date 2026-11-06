@@ -15,10 +15,12 @@ export function request(ctx) {
       return false;
     })
     .map((row) => util.dynamodb.toMapValues({ shopperId: ctx.stash.userId, sk: row.sk }));
-  if (!keys.length) runtime.earlyReturn({ ok: true });
-  if (keys.length > 25) util.error("That's too much to remove at once.");
+  ctx.stash.shoppingDeleteKeys = keys;
+  const slice = keys.slice(0, 25);
+  if (!slice.length) runtime.earlyReturn({ ok: true });
+  if (keys.length > 50) util.error("That's more than 50 items to remove at once.");
   const tables = {};
-  tables[tbl("shopping")] = keys;
+  tables[tbl("shopping")] = slice;
   return { operation: "BatchDeleteItem", tables: tables };
 }
 

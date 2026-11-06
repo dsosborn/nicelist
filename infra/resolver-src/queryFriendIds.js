@@ -24,11 +24,20 @@ export function request(ctx) {
 
 export function response(ctx) {
   ctx.stash.friendIds = friendIdsOf(itemsOf(ctx.result));
+  const field = ctx.info.fieldName;
+  if (field === "reserveGift" || field === "setPurchased" || field === "releaseGift") {
+    const err = openListError(ctx.stash.list, ctx.stash.userId, ctx.stash.friendIds);
+    if (err) util.error(err);
+    return ctx.stash.friendIds;
+  }
+  if (field === "pokeList") {
+    if (!ctx.stash.list || !canView(ctx.stash.list, ctx.stash.userId, ctx.stash.friendIds)) {
+      util.error("This list wasn't found.");
+    }
+    return ctx.stash.friendIds;
+  }
   if (ctx.stash.list && (ctx.stash.shape === "shop" || ctx.stash.needsFriends)) {
     if (!canShop(ctx.stash.list, ctx.stash.userId, ctx.stash.friendIds)) {
-      if (ctx.info.fieldName === "reserveGift" || ctx.info.fieldName === "setPurchased" || ctx.info.fieldName === "releaseGift") {
-        util.error("This list wasn't found.");
-      }
       ctx.stash.notFound = true;
       ctx.stash.list = null;
     }

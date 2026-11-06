@@ -47,10 +47,22 @@ enum PersonKind {
   NAME
 }
 
+enum ReceivedSource {
+  WISHLIST
+  SUGGESTION
+}
+
 type Profile @aws_cognito_user_pools {
   id: ID!
   displayName: String!
   email: String!
+}
+
+type Poke @aws_cognito_user_pools {
+  id: ID!
+  senderName: String!
+  band: PriceBand!
+  createdAt: String
 }
 
 type OwnerSlot @aws_cognito_user_pools {
@@ -96,6 +108,8 @@ type OwnerList @aws_cognito_user_pools {
   isChild: Boolean!
   managing: Boolean!
   gifts: [OwnerGift!]!
+  pokes: [Poke!]!
+  managers: [FriendPerson!]!
 }
 
 type ShopperSlot @aws_cognito_user_pools {
@@ -131,6 +145,8 @@ type ShopperList @aws_cognito_user_pools {
   gifts: [ShopperGift!]!
   openCount: Int!
   commissionDisclosure: Boolean!
+  myPokes: [Poke!]!
+  canPoke: Boolean!
 }
 
 type GuestGift @aws_api_key {
@@ -202,6 +218,7 @@ type ShoppingPersonGifts @aws_cognito_user_pools {
   listId: ID
   gifts: [ShopperGift!]!
   openCount: Int!
+  myPokes: [Poke!]!
 }
 
 type GiftIdea @aws_cognito_user_pools {
@@ -222,6 +239,7 @@ type IdeaResult @aws_cognito_user_pools {
 type ReceivedGift @aws_cognito_user_pools {
   id: ID!
   title: String!
+  source: ReceivedSource!
   stars: Int
   ratingLine: String
 }
@@ -276,6 +294,8 @@ type Mutation {
   reserveGift(listId: ID!, giftId: ID!, note: String): ShopperGift! @aws_cognito_user_pools
   setPurchased(listId: ID!, giftId: ID!, slot: Int!, purchased: Boolean!, note: String): ShopperGift! @aws_cognito_user_pools
   releaseGift(listId: ID!, giftId: ID!, slot: Int!): ShopperGift! @aws_cognito_user_pools
+  pokeList(listId: ID!, band: PriceBand!): Poke! @aws_cognito_user_pools
+  dismissPoke(listId: ID!, id: ID!): Boolean! @aws_cognito_user_pools
   sendFriendRequest(email: String!): FriendsView! @aws_cognito_user_pools
   acceptFriendRequest(userId: ID!): FriendsView! @aws_cognito_user_pools
   declineFriendRequest(userId: ID!): FriendsView! @aws_cognito_user_pools

@@ -222,3 +222,41 @@ resource "aws_dynamodb_table" "ratings" {
     prevent_destroy = true
   }
 }
+
+resource "aws_dynamodb_table" "pokes" {
+  name                        = "${local.name_prefix}-pokes"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "listId"
+  range_key                   = "sk"
+  deletion_protection_enabled = true
+
+  attribute {
+    name = "listId"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  attribute {
+    name = "senderId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "senderId-index"
+    hash_key        = "senderId"
+    range_key       = "sk"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}

@@ -51,7 +51,8 @@ export const handler = async (event) => {
     );
     const text = response.output?.message?.content?.[0]?.text || "";
     return { ideas: parseIdeas(text) };
-  } catch {
+  } catch (err) {
+    console.error("ideas_failed", err && err.name ? err.name : "Error");
     return { ideas: [] };
   }
 };

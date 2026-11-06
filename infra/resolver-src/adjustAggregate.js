@@ -1,6 +1,7 @@
 import { util } from "@aws-appsync/utils";
 
 export function request(ctx) {
+  const delta = ratingDelta(ctx.stash.previousStars, ctx.stash.rateStars);
   return {
     operation: "UpdateItem",
     key: util.dynamodb.toMapValues({
@@ -8,10 +9,10 @@ export function request(ctx) {
       sk: normalizeTitle(ctx.stash.rateTitle || ""),
     }),
     update: {
-      expression: "ADD ratingCount :one, ratingSum :stars",
+      expression: "ADD ratingCount :countDelta, ratingSum :sumDelta",
       expressionValues: util.dynamodb.toMapValues({
-        ":one": 1,
-        ":stars": ctx.stash.rateStars,
+        ":countDelta": delta.countDelta,
+        ":sumDelta": delta.sumDelta,
       }),
     },
   };

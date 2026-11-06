@@ -24,7 +24,7 @@ export function request(ctx) {
 export function response(ctx) {
   const items = itemsOf(ctx.result);
   if ((ctx.info.fieldName === "deleteList" || ctx.info.fieldName === "removeChild") && items.length > LIMITS.deleteClaims) {
-    util.error("This list is too large to delete at once.");
+    util.error("This list has more than " + LIMITS.deleteClaims + " claim slots. Delete some gifts first.");
   }
   ctx.stash.claims = items;
   return items;

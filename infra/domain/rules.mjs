@@ -8,13 +8,14 @@ const LIMITS = {
   displayName: 80,
   quantityMax: 10,
   priceMax: 10000000,
-  deleteClaims: 50,
-  deleteGifts: 25,
+  deleteClaims: 75,
+  deleteGifts: 50,
   ideaCap: 20,
   ratingCohort: 10,
 };
 
 const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const BANDS = { UNDER_25: 1, MID: 1, OVER_75: 1 };
 
 function clean(value) {
   if (value === undefined || value === null) return "";
@@ -25,6 +26,10 @@ function slotKey(giftId, slot) {
   const raw = "" + slot;
   const pad = raw.length >= 4 ? raw : "0000".substring(raw.length) + raw;
   return giftId + "#" + pad;
+}
+
+function pokeKey(senderId, band) {
+  return "POKE#" + senderId + "#" + band;
 }
 
 function contains(list, value) {
@@ -49,9 +54,8 @@ function ownerSeesClaims(list, userId) {
   return !!list.revealedAt;
 }
 
-function canShop(list, userId, friendIds) {
+function canView(list, userId, friendIds) {
   if (!list || !userId) return false;
-  if (list.recipientId === userId) return false;
   if (canManage(list, userId)) return true;
   if (list.visibility === "PRIVATE") return false;
   if (list.visibility === "PUBLIC") return true;
@@ -59,6 +63,20 @@ function canShop(list, userId, friendIds) {
     return managerIdsOf(list).some((id) => contains(friendIds, id));
   }
   return false;
+}
+
+function canShop(list, userId, friendIds) {
+  if (!list || !userId) return false;
+  if (list.recipientId === userId) return false;
+  return canView(list, userId, friendIds);
+}
+
+function openListError(list, userId, friendIds) {
+  if (!list) return "This list wasn't found.";
+  if (!canView(list, userId, friendIds)) return "This list wasn't found.";
+  if (list.recipientId === userId) return "You can't claim a gift on your own list.";
+  if (list.revealedAt) return "This list is revealed.";
+  return null;
 }
 
 function validateDisplayName(name) {
@@ -207,6 +225,11 @@ function claimsForGift(claims, giftId) {
   return sortBySlot(rows);
 }
 
+function nameFromProfiles(profiles, userId, fallback) {
+  if (profiles && userId && profiles[userId]) return profiles[userId];
+  return fallback || null;
+}
+
 function ownerGiftView(gift, claims, showSlots) {
   const view = giftFields(gift);
   if (!showSlots) return view;
@@ -218,16 +241,18 @@ function ownerGiftView(gift, claims, showSlots) {
   return view;
 }
 
-function shopperGiftView(gift, claims, shopperId, tag, onlyMine) {
+function shopperGiftView(gift, claims, shopperId, tag, onlyMine, profiles) {
   const rows = claimsForGift(claims, gift.id);
   const tallied = rows.reduce(
     (acc, row) => {
       const mine = row.shopperId === shopperId && row.status !== "OPEN";
       const skip = onlyMine && row.status !== "OPEN" && !mine;
+      const resolvedName =
+        row.status === "OPEN" ? null : nameFromProfiles(profiles, row.shopperId, row.shopperName);
       const slot = {
         index: row.slot,
         status: row.status,
-        shopperName: row.status === "OPEN" ? null : row.shopperName || null,
+        shopperName: resolvedName,
         shopperNote: row.status === "OPEN" ? null : row.shopperNote || null,
         claimId: row.claimId || null,
         mine: mine,
@@ -266,7 +291,48 @@ function guestGiftView(gift, claims, tag) {
   return view;
 }
 
-function listSummary(list) {
+function bandOf(price) {
+  if (price === undefined || price === null) return null;
+  if (price < 2500) return "UNDER_25";
+  if (price <= 7500) return "MID";
+  return "OVER_75";
+}
+
+function isThin(gifts, band) {
+  const count = (gifts || []).filter((row) => bandOf(row.price) === band).length;
+  return count < 3;
+}
+
+function visiblePokes(pokes, gifts, profiles) {
+  return (pokes || [])
+    .filter((row) => isThin(gifts, row.band))
+    .map((row) => ({
+      id: row.id || row.sk || pokeKey(row.senderId, row.band),
+      senderName: nameFromProfiles(profiles, row.senderId, row.senderName) || "A friend",
+      band: row.band,
+      createdAt: row.createdAt || null,
+    }));
+}
+
+function canPoke(list, gifts, userId, friendIds, band) {
+  if (!list || !userId || !BANDS[band]) return false;
+  if (list.visibility === "PRIVATE" || list.revealedAt) return false;
+  if (list.recipientId === userId || canManage(list, userId)) return false;
+  const isFriend = managerIdsOf(list).some((id) => contains(friendIds, id));
+  if (!isFriend) return false;
+  return isThin(gifts, band);
+}
+
+function pickPoke(pokes, senderId, band) {
+  const found = (pokes || []).find((row) => row.senderId === senderId && row.band === band);
+  if (found) return { action: "existing", poke: found };
+  return { action: "create", sk: pokeKey(senderId, band) };
+}
+
+function listSummary(list, profiles) {
+  const recipientName = list.isChild
+    ? list.recipientName
+    : nameFromProfiles(profiles, list.recipientId, list.recipientName);
   return {
     id: list.id,
     name: list.name,
@@ -274,20 +340,31 @@ function listSummary(list) {
     revealedAt: list.revealedAt || null,
     shareToken: list.shareToken,
     recipientId: list.recipientId,
-    recipientName: list.recipientName,
+    recipientName: recipientName,
     isChild: !!list.isChild,
   };
 }
 
-function shapeShoppingPerson(personId, listId, gifts, claims, userId, tag) {
+function shapeShoppingPerson(personId, listId, gifts, claims, userId, tag, pokes, profiles) {
   const out = (gifts || [])
-    .map((row) => shopperGiftView(row, claims, userId, tag, true))
+    .map((row) => shopperGiftView(row, claims, userId, tag, true, profiles))
     .filter((gift) => gift);
   const openCount = out.reduce((sum, gift) => sum + gift.openCount, 0);
-  return { personId: personId, listId: listId || null, gifts: out, openCount: openCount };
+  const myPokes = visiblePokes(
+    (pokes || []).filter((row) => row.senderId === userId),
+    gifts,
+    profiles,
+  );
+  return {
+    personId: personId,
+    listId: listId || null,
+    gifts: out,
+    openCount: openCount,
+    myPokes: myPokes,
+  };
 }
 
-function shapeMyList(list, gifts, claims, userId, tag) {
+function shapeMyList(list, gifts, claims, userId, tag, pokes, profiles) {
   if (!list) return null;
   const showSlots = ownerSeesClaims(list, userId);
   const asShopper = canManage(list, userId) && list.recipientId !== userId;
@@ -295,7 +372,7 @@ function shapeMyList(list, gifts, claims, userId, tag) {
   const outGifts = asShopper
     ? rows
         .map((row) => {
-          const gift = shopperGiftView(row, claims, userId, tag, false);
+          const gift = shopperGiftView(row, claims, userId, tag, false, profiles);
           if (!gift) return null;
           const managed = giftFields(row);
           managed.shopperSlots = gift.slots;
@@ -304,37 +381,55 @@ function shapeMyList(list, gifts, claims, userId, tag) {
         })
         .filter((gift) => gift)
     : rows.map((row) => ownerGiftView(row, claims, showSlots));
-  const summary = listSummary(list);
+  const summary = listSummary(list, profiles);
   summary.gifts = outGifts;
   summary.managing = asShopper;
+  summary.pokes = visiblePokes(pokes, rows, profiles);
+  summary.managers = managerIdsOf(list).map((managerId) => ({
+    userId: managerId,
+    displayName: nameFromProfiles(profiles, managerId, managerId === list.ownerId ? list.recipientName : "Co-manager") || "Adult",
+  }));
   return summary;
 }
 
-function shapeGuestList(list, gifts, claims, tag) {
+function shapeGuestList(list, gifts, claims, tag, profiles) {
   if (!list || list.visibility !== "PUBLIC") return null;
+  const recipientName = list.isChild
+    ? list.recipientName
+    : nameFromProfiles(profiles, list.recipientId, list.recipientName);
   return {
     name: list.name,
-    recipientName: list.recipientName,
+    recipientName: recipientName,
     gifts: (gifts || []).map((row) => guestGiftView(row, claims, tag)),
     commissionDisclosure: true,
   };
 }
 
-function shapeShopperList(list, gifts, claims, userId, friendIds, tag) {
+function shapeShopperList(list, gifts, claims, userId, friendIds, tag, pokes, profiles) {
   if (!list || !canShop(list, userId, friendIds)) return null;
   const out = (gifts || [])
-    .map((row) => shopperGiftView(row, claims, userId, tag, false))
+    .map((row) => shopperGiftView(row, claims, userId, tag, false, profiles))
     .filter((gift) => gift);
   const openCount = out.reduce((sum, gift) => sum + gift.openCount, 0);
+  const recipientName = list.isChild
+    ? list.recipientName
+    : nameFromProfiles(profiles, list.recipientId, list.recipientName);
+  const myPokes = visiblePokes(
+    (pokes || []).filter((row) => row.senderId === userId),
+    gifts,
+    profiles,
+  );
   return {
     id: list.id,
     name: list.name,
-    recipientName: list.recipientName,
+    recipientName: recipientName,
     visibility: list.visibility,
     revealed: !!list.revealedAt,
     gifts: sortOpenFirst(out),
     openCount: openCount,
     commissionDisclosure: true,
+    myPokes: myPokes,
+    canPoke: managerIdsOf(list).some((id) => contains(friendIds, id)) && !canManage(list, userId),
   };
 }
 
@@ -361,34 +456,31 @@ function claimQuantityChange(existing, quantity, giftId, newClaimIds) {
   const rows = sortBySlot((existing || []).slice());
   if (quantity === rows.length) return { error: null, put: [], remove: [] };
   if (quantity > rows.length) {
-    const start = rows.length + 1;
-    const put = SLOTS.filter((slot) => slot >= start && slot <= quantity).map((slot) => ({
-      giftId: giftId,
-      slot: slot,
-      sk: slotKey(giftId, slot),
-      status: "OPEN",
-      claimId: newClaimIds[slot - rows.length - 1],
-    }));
+    const lastSlot = rows.length ? rows[rows.length - 1].slot : 0;
+    const needed = quantity - rows.length;
+    const put = SLOTS.filter((slot) => slot <= needed).map((offset) => {
+      const slot = lastSlot + offset;
+      return {
+        giftId: giftId,
+        slot: slot,
+        sk: slotKey(giftId, slot),
+        status: "OPEN",
+        claimId: newClaimIds[offset - 1],
+      };
+    });
     return { error: null, put: put, remove: [] };
   }
-  const tail = rows.slice(quantity);
-  if (tail.some((row) => row.status !== "OPEN")) {
-    return { error: "Quantity can't drop below gifts already taken.", put: [], remove: [] };
-  }
-  const remove = tail.reduce((acc, row) => [row].concat(acc), []);
+  const toDrop = rows.length - quantity;
+  const openFromEnd = rows
+    .filter((row) => row.status === "OPEN")
+    .reduce((acc, row) => [row].concat(acc), []);
+  const remove = openFromEnd.slice(0, toDrop);
   return { error: null, put: [], remove: remove };
 }
 
-function bandOf(price) {
-  if (price === undefined || price === null) return null;
-  if (price < 2500) return "UNDER_25";
-  if (price <= 7500) return "MID";
-  return "OVER_75";
-}
-
-function isThin(gifts, band) {
-  const count = (gifts || []).filter((row) => bandOf(row.price) === band).length;
-  return count < 3;
+function deleteWindows(rows, maxBatches) {
+  const batches = chunk(rows || [], 25);
+  return batches.slice(0, maxBatches || 3);
 }
 
 function ideaContext(gifts, band, extra) {
@@ -403,6 +495,13 @@ function ideaContext(gifts, band, extra) {
     displayName: extra && extra.displayName ? extra.displayName : null,
     standingNote: extra && extra.standingNote ? extra.standingNote : null,
   };
+}
+
+function ratingDelta(previousStars, nextStars) {
+  if (previousStars === undefined || previousStars === null) {
+    return { countDelta: 1, sumDelta: nextStars };
+  }
+  return { countDelta: 0, sumDelta: nextStars - previousStars };
 }
 
 function ratingLine(count, sum) {
@@ -434,8 +533,8 @@ function friendIdsOf(rows) {
     .map((row) => row.otherId);
 }
 
-function shapeShopping(rows) {
-  return (rows || []).reduce(
+function shapeShopping(rows, claimedGifts) {
+  const base = (rows || []).reduce(
     (acc, row) => {
       if (row.sk === "LIST") {
         return {
@@ -506,9 +605,16 @@ function shapeShopping(rows) {
       totalCents: 0,
     },
   );
+  const extra = (claimedGifts || []).reduce(
+    (sum, item) => sum + (typeof item.price === "number" ? item.price : 0),
+    0,
+  );
+  base.totalCents = base.totalCents + extra;
+  return base;
 }
 
-function shapeReceived(gifts, claims, inbox, ratings) {
+function shapeReceived(gifts, claims, inbox, ratings, revealed) {
+  if (revealed === false) return [];
   const ratingRows = ratings || [];
   const starsById = {};
   ratingRows
@@ -538,6 +644,7 @@ function shapeReceived(gifts, claims, inbox, ratings) {
       return {
         id: claim.giftId,
         title: title,
+        source: "WISHLIST",
         stars: starsById[claim.giftId] === undefined ? null : starsById[claim.giftId],
         ratingLine: lines[normalizeTitle(title)] || null,
       };
@@ -549,6 +656,7 @@ function shapeReceived(gifts, claims, inbox, ratings) {
       return {
         id: id,
         title: row.title || "A gift",
+        source: "SUGGESTION",
         stars: starsById[id] === undefined ? null : starsById[id],
         ratingLine: lines[normalizeTitle(row.title || "")] || null,
       };
@@ -583,11 +691,14 @@ export {
   LIMITS,
   clean,
   slotKey,
+  pokeKey,
   contains,
   managerIdsOf,
   canManage,
   ownerSeesClaims,
+  canView,
   canShop,
+  openListError,
   validateDisplayName,
   validateListName,
   validateGiftInput,
@@ -597,6 +708,9 @@ export {
   ownerGiftView,
   shopperGiftView,
   guestGiftView,
+  visiblePokes,
+  canPoke,
+  pickPoke,
   listSummary,
   shapeMyList,
   shapeShoppingPerson,
@@ -605,9 +719,11 @@ export {
   pickReserve,
   claimSlots,
   claimQuantityChange,
+  deleteWindows,
   bandOf,
   isThin,
   ideaContext,
+  ratingDelta,
   ratingLine,
   normalizeTitle,
   shapeFriends,

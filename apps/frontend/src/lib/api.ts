@@ -3,6 +3,67 @@
 import "@/lib/amplify";
 
 import { generateClient } from "aws-amplify/api";
+import type {
+  ClaimStatus,
+  FriendPerson,
+  FriendsView,
+  GiftIdea,
+  GiftKind,
+  GuestGift,
+  GuestList,
+  IdeaResult,
+  MembershipPhrase,
+  OwnerGift,
+  OwnerList,
+  OwnerListSummary,
+  OwnerSlot,
+  PersonKind,
+  PlannedGift,
+  Poke,
+  PriceBand,
+  Profile,
+  ReceivedGift,
+  ReceivedSource,
+  ShopperGift,
+  ShopperList,
+  ShopperSlot,
+  ShoppingList,
+  ShoppingPerson,
+  ShoppingPersonGifts,
+  TimingPhrase,
+  Visibility,
+} from "@/graphql/generated";
+
+export type {
+  ClaimStatus,
+  FriendPerson,
+  FriendsView,
+  GiftIdea,
+  GiftKind,
+  GuestGift,
+  GuestList,
+  IdeaResult,
+  MembershipPhrase,
+  OwnerGift,
+  OwnerList,
+  OwnerSlot,
+  PersonKind,
+  PlannedGift,
+  Poke,
+  PriceBand,
+  Profile,
+  ReceivedGift,
+  ReceivedSource,
+  ShopperGift,
+  ShopperList,
+  ShopperSlot,
+  ShoppingList,
+  ShoppingPerson,
+  ShoppingPersonGifts,
+  TimingPhrase,
+  Visibility,
+};
+export type ListSummary = OwnerListSummary;
 
 const client = generateClient();
 
@@ -42,101 +103,6 @@ export async function gql<T>(
   return result.data;
 }
 
-export type Visibility = "PUBLIC" | "FRIENDS" | "PRIVATE";
-export type GiftKind = "PRODUCT" | "CUSTOM" | "EXPERIENCE" | "MEMBERSHIP";
-export type TimingPhrase = "ANYTIME" | "THIS_SEASON" | "NEXT_SEASON" | "PICK_LATER";
-export type MembershipPhrase = "ANNUAL" | "SEASON_PACKAGE" | "DIGITAL";
-export type PriceBand = "UNDER_25" | "MID" | "OVER_75";
-export type PersonKind = "FRIEND" | "CHILD" | "NAME";
-
-export type Profile = { id: string; displayName: string; email: string };
-
-export type ListSummary = {
-  id: string;
-  name: string;
-  visibility: Visibility;
-  revealedAt: string | null;
-  shareToken: string;
-  recipientId: string;
-  recipientName: string;
-  isChild: boolean;
-};
-
-export type OwnerSlot = { index: number; status: "OPEN" | "RESERVED" | "PURCHASED" };
-export type ShopperSlot = {
-  index: number;
-  status: "OPEN" | "RESERVED" | "PURCHASED";
-  shopperName: string | null;
-  shopperNote: string | null;
-  claimId: string | null;
-  mine: boolean;
-};
-
-export type OwnerGift = {
-  id: string;
-  kind: GiftKind;
-  title: string | null;
-  url: string | null;
-  price: number | null;
-  notes: string | null;
-  quantity: number;
-  timingPhrase: TimingPhrase | null;
-  membershipPhrase: MembershipPhrase | null;
-  createdAt: string | null;
-  slots: OwnerSlot[] | null;
-  shopperSlots: ShopperSlot[] | null;
-  openCount: number | null;
-};
-
-export type OwnerList = ListSummary & { managing: boolean; gifts: OwnerGift[] };
-
-export type ShopperGift = {
-  id: string;
-  kind: GiftKind;
-  title: string | null;
-  url: string | null;
-  price: number | null;
-  notes: string | null;
-  quantity: number;
-  timingPhrase: TimingPhrase | null;
-  membershipPhrase: MembershipPhrase | null;
-  slots: ShopperSlot[];
-  openCount: number;
-};
-
-export type ShopperList = {
-  id: string;
-  name: string;
-  recipientName: string;
-  visibility: Visibility;
-  revealed: boolean;
-  gifts: ShopperGift[];
-  openCount: number;
-  commissionDisclosure: boolean;
-};
-
-export type GuestGift = {
-  id: string;
-  kind: GiftKind;
-  title: string | null;
-  url: string | null;
-  price: number | null;
-  notes: string | null;
-  quantity: number;
-  timingPhrase: TimingPhrase | null;
-  membershipPhrase: MembershipPhrase | null;
-  openCount: number;
-  reservedCount: number;
-  purchasedCount: number;
-};
-
-export type GuestList = {
-  name: string;
-  recipientName: string;
-  gifts: GuestGift[];
-  commissionDisclosure: boolean;
-};
-
 export type GiftInput = {
   kind: GiftKind;
   title?: string;
@@ -157,6 +123,16 @@ const ownerGiftFields = `
   slots { index status }
   shopperSlots { index status shopperName shopperNote claimId mine }
   openCount
+`;
+
+const pokeFields = `id senderName band createdAt`;
+
+const ownerListFields = `
+  ${summaryFields}
+  managing
+  gifts { ${ownerGiftFields} }
+  pokes { ${pokeFields} }
+  managers { userId displayName }
 `;
 
 export async function fetchMe() {
@@ -181,7 +157,7 @@ export async function fetchMyLists() {
 
 export async function fetchMyList(id: string) {
   const data = await gql<{ myList: OwnerList | null }>(
-    `query ($id: ID!) { myList(id: $id) { ${summaryFields} managing gifts { ${ownerGiftFields} } } }`,
+    `query ($id: ID!) { myList(id: $id) { ${ownerListFields} } }`,
     { id },
   );
   return data.myList;
@@ -221,7 +197,7 @@ export async function rotateShareToken(id: string) {
 
 export async function deleteList(id: string) {
   const data = await gql<{ deleteList: ListSummary }>(
-    `mutation ($id: ID!) { deleteList(id: $id) { id name } }`,
+    `mutation ($id: ID!) { deleteList(id: $id) { ${summaryFields} } }`,
     { id },
   );
   return data.deleteList;
@@ -229,7 +205,7 @@ export async function deleteList(id: string) {
 
 export async function revealList(id: string) {
   const data = await gql<{ revealList: OwnerList }>(
-    `mutation ($id: ID!) { revealList(id: $id) { ${summaryFields} managing gifts { ${ownerGiftFields} } } }`,
+    `mutation ($id: ID!) { revealList(id: $id) { ${ownerListFields} } }`,
     { id },
   );
   return data.revealList;
@@ -304,24 +280,42 @@ export async function addGift(listId: string, input: GiftInput) {
   return data.addGift;
 }
 
-export async function updateGift(listId: string, id: string, input: GiftInput) {
+export async function updateGift(
+  listId: string,
+  id: string,
+  input: Omit<GiftInput, "kind"> & { kind?: GiftKind },
+) {
   const data = await gql<{ updateGift: OwnerGift }>(
-    `mutation ($listId: ID!, $id: ID!, ${giftArgs}) { updateGift(listId: $listId, id: $id, ${giftPass}) { ${ownerGiftFields} } }`,
-    { listId, id, ...giftVars(input) },
+    `mutation ($listId: ID!, $id: ID!, $title: String, $url: String, $price: Int, $notes: String, $quantity: Int, $timingPhrase: TimingPhrase, $membershipPhrase: MembershipPhrase) {
+      updateGift(listId: $listId, id: $id, title: $title, url: $url, price: $price, notes: $notes, quantity: $quantity, timingPhrase: $timingPhrase, membershipPhrase: $membershipPhrase) {
+        ${ownerGiftFields}
+      }
+    }`,
+    {
+      listId,
+      id,
+      title: input.title ?? null,
+      url: input.url ?? null,
+      price: input.price ?? null,
+      notes: input.notes ?? null,
+      quantity: input.quantity ?? null,
+      timingPhrase: input.timingPhrase ?? null,
+      membershipPhrase: input.membershipPhrase ?? null,
+    },
   );
   return data.updateGift;
 }
 
 export async function deleteGift(listId: string, id: string) {
   const data = await gql<{ deleteGift: OwnerGift }>(
-    `mutation ($listId: ID!, $id: ID!) { deleteGift(listId: $listId, id: $id) { id title } }`,
+    `mutation ($listId: ID!, $id: ID!) { deleteGift(listId: $listId, id: $id) { ${ownerGiftFields} } }`,
     { listId, id },
   );
   return data.deleteGift;
 }
 
 const shopperGiftFields = `
-  id kind title url price notes quantity timingPhrase membershipPhrase
+  id kind title url price notes quantity timingPhrase membershipPhrase createdAt
   openCount
   slots { index status shopperName shopperNote claimId mine }
 `;
@@ -331,7 +325,7 @@ export async function fetchGuestList(token: string) {
     `query ($token: String!) {
       guestList(token: $token) {
         name recipientName commissionDisclosure
-        gifts { id kind title url price notes quantity timingPhrase membershipPhrase openCount reservedCount purchasedCount }
+        gifts { id kind title url price notes quantity timingPhrase membershipPhrase createdAt openCount reservedCount purchasedCount }
       }
     }`,
     { token },
@@ -344,7 +338,8 @@ export async function fetchShopList(token: string) {
   const data = await gql<{ shopList: ShopperList | null }>(
     `query ($token: String!) {
       shopList(token: $token) {
-        id name recipientName visibility revealed openCount commissionDisclosure
+        id name recipientName visibility revealed openCount commissionDisclosure canPoke
+        myPokes { ${pokeFields} }
         gifts { ${shopperGiftFields} }
       }
     }`,
@@ -389,12 +384,22 @@ export async function releaseGift(listId: string, giftId: string, slot: number) 
   return data.releaseGift;
 }
 
-export type FriendPerson = { userId: string; displayName: string };
-export type FriendsView = {
-  friends: FriendPerson[];
-  incoming: FriendPerson[];
-  outgoing: FriendPerson[];
-};
+export async function pokeList(listId: string, band: PriceBand) {
+  const data = await gql<{ pokeList: Poke }>(
+    `mutation ($listId: ID!, $band: PriceBand!) {
+      pokeList(listId: $listId, band: $band) { ${pokeFields} }
+    }`,
+    { listId, band },
+  );
+  return data.pokeList;
+}
+
+export async function dismissPoke(listId: string, id: string) {
+  await gql(
+    `mutation ($listId: ID!, $id: ID!) { dismissPoke(listId: $listId, id: $id) }`,
+    { listId, id },
+  );
+}
 
 const friendsQuery = `query { friends { friends { userId displayName } incoming { userId displayName } outgoing { userId displayName } } }`;
 
@@ -442,36 +447,6 @@ export async function removeFriend(userId: string) {
   );
   return data.removeFriend;
 }
-
-export type ShoppingPerson = {
-  id: string;
-  name: string;
-  kind: PersonKind;
-  refId: string | null;
-  standingNote: string | null;
-};
-
-export type PlannedGift = {
-  id: string;
-  personId: string;
-  kind: GiftKind;
-  title: string | null;
-  url: string | null;
-  price: number | null;
-  notes: string | null;
-  timingPhrase: TimingPhrase | null;
-  membershipPhrase: MembershipPhrase | null;
-  purchased: boolean;
-  againNextYear: boolean;
-};
-
-export type ShoppingList = {
-  name: string;
-  people: ShoppingPerson[];
-  plannedGifts: PlannedGift[];
-  againClaimIds: string[];
-  totalCents: number;
-};
 
 const shoppingFields = `
   name totalCents againClaimIds
@@ -584,27 +559,15 @@ export async function deleteShoppingList() {
 }
 
 export async function fetchShoppingPerson(personId: string) {
-  const data = await gql<{
-    shoppingPerson: { personId: string; listId: string | null; gifts: ShopperGift[]; openCount: number } | null;
-  }>(
-    `query ($personId: ID!) { shoppingPerson(personId: $personId) { personId listId openCount gifts { ${shopperGiftFields} } } }`,
+  const data = await gql<{ shoppingPerson: ShoppingPersonGifts | null }>(
+    `query ($personId: ID!) { shoppingPerson(personId: $personId) { personId listId openCount myPokes { ${pokeFields} } gifts { ${shopperGiftFields} } } }`,
     { personId },
   );
   return data.shoppingPerson;
 }
 
-export type GiftIdea = {
-  title: string;
-  price: number;
-  reason: string;
-  kind: GiftKind;
-  timingPhrase: TimingPhrase | null;
-  membershipPhrase: MembershipPhrase | null;
-  ratingLine: string | null;
-};
-
 export async function askForIdeas(listId: string, band: PriceBand) {
-  const data = await gql<{ askForIdeas: { ideas: GiftIdea[]; message: string | null } }>(
+  const data = await gql<{ askForIdeas: IdeaResult }>(
     `mutation ($listId: ID!, $band: PriceBand!) {
       askForIdeas(listId: $listId, band: $band) {
         message
@@ -617,7 +580,7 @@ export async function askForIdeas(listId: string, band: PriceBand) {
 }
 
 export async function askForShoppingIdeas(personId: string, band: PriceBand) {
-  const data = await gql<{ askForShoppingIdeas: { ideas: GiftIdea[]; message: string | null } }>(
+  const data = await gql<{ askForShoppingIdeas: IdeaResult }>(
     `mutation ($personId: ID!, $band: PriceBand!) {
       askForShoppingIdeas(personId: $personId, band: $band) {
         message
@@ -629,18 +592,16 @@ export async function askForShoppingIdeas(personId: string, band: PriceBand) {
   return data.askForShoppingIdeas;
 }
 
-export type ReceivedGift = { id: string; title: string; stars: number | null; ratingLine: string | null };
-
 export async function fetchReceivedGifts() {
   const data = await gql<{ receivedGifts: ReceivedGift[] }>(
-    `query { receivedGifts { id title stars ratingLine } }`,
+    `query { receivedGifts { id title source stars ratingLine } }`,
   );
   return data.receivedGifts;
 }
 
 export async function rateGift(listId: string, giftId: string, stars: number) {
   const data = await gql<{ rateGift: ReceivedGift }>(
-    `mutation ($listId: ID!, $giftId: ID!, $stars: Int!) { rateGift(listId: $listId, giftId: $giftId, stars: $stars) { id title stars ratingLine } }`,
+    `mutation ($listId: ID!, $giftId: ID!, $stars: Int!) { rateGift(listId: $listId, giftId: $giftId, stars: $stars) { id title source stars ratingLine } }`,
     { listId, giftId, stars },
   );
   return data.rateGift;
@@ -648,7 +609,7 @@ export async function rateGift(listId: string, giftId: string, stars: number) {
 
 export async function rateSuggestion(id: string, stars: number) {
   const data = await gql<{ rateSuggestion: ReceivedGift }>(
-    `mutation ($id: ID!, $stars: Int!) { rateSuggestion(id: $id, stars: $stars) { id title stars ratingLine } }`,
+    `mutation ($id: ID!, $stars: Int!) { rateSuggestion(id: $id, stars: $stars) { id title source stars ratingLine } }`,
     { id, stars },
   );
   return data.rateSuggestion;
@@ -692,4 +653,10 @@ export const membershipCopy: Record<MembershipPhrase, string> = {
   ANNUAL: "Annual",
   SEASON_PACKAGE: "Season package",
   DIGITAL: "Digital",
+};
+
+export const bandCopy: Record<PriceBand, string> = {
+  UNDER_25: "under $25",
+  MID: "from $25 to $75",
+  OVER_75: "over $75",
 };
