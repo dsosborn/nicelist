@@ -56,11 +56,19 @@ variable "domain_name" {
 variable "oauth_callback_urls" {
   description = "Allowed Cognito OAuth callback URLs"
   type        = list(string)
-  default     = ["http://localhost:3000/login", "https://nicelist.co/login"]
+  default = [
+    "http://localhost:3000/login",
+    "https://nicelist.co/login",
+    "https://ofglgbdelahcjkohleeglldahhlaokke.chromiumapp.org/",
+  ]
 }
 
 variable "oauth_logout_urls" {
   description = "Allowed Cognito OAuth logout URLs"
   type        = list(string)
-  default     = ["http://localhost:3000/login", "https://nicelist.co/login"]
+  default = [
+    "http://localhost:3000/login",
+    "https://nicelist.co/login",
+    "https://ofglgbdelahcjkohleeglldahhlaokke.chromiumapp.org/",
+  ]
 }

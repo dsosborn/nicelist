@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Nicelist — Add to Wishlist",
+  "version": "0.1.0",
+  "description": "Add the product you are viewing to your Nicelist wishlist without spoiling surprises.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxTpGYN1ZeCF2I0hRJJUBAS4YLsAy+o+HQ8E1sjVOa9bIqpeXees1oO3ujbhGJ+OkxMlWc3zGsINRwDlfJF6r/tX4QMpMeks8D0n0KJoKhFfCNIwxaL06zr8fBkT4JawQALkhZ9yPcH7oI9MtzTYFpRwkO6ePW79MopUzSswzGihny9pMwPb3hEMyReFCjhMFvp3YaLblG+qH4BWBgBDIHVI+dpCHPup0a8ktYenyUTY7wurih4RaetqyjLLifNqc4sGkAjtEFf0yA1MRMSonwss9/EFOavdaoa/ZY1z6UiTMYJp8zZK6QphJ015XH1JAuynDB5zFlFBgzSSmaWMhXQIDAQAB",
+  "permissions": ["activeTab", "scripting", "storage", "identity"],
+  "host_permissions": [
+    "https://*.amazonaws.com/*",
+    "https://*.amazoncognito.com/*"
+  ],
+  "action": {
+    "default_title": "Add to Nicelist",
+    "default_popup": "popup.html"
+  }
+}
