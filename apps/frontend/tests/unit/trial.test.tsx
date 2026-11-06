@@ -14,6 +14,9 @@ import { buildNicelistTools } from "@/lib/webmcp";
 import { GiftForm } from "@/components/GiftForm";
 import { VisibilityRadio, TimingRadio, MembershipRadio } from "@/components/PhraseRadio";
 import { purchasedSummary } from "@/components/ShopperPokeSection";
+import { buildTrialEvent, scrubPageAddress } from "@/lib/analytics";
+import { AuthProvider } from "@/context/AuthContext";
+import PrivacyPage from "@/app/privacy/page";
 
 describe("trial copy and helpers", () => {
   it("uses the exact visibility, timing, membership, and poke band sentences", () => {
@@ -150,5 +153,39 @@ describe("WebMCP tool registry", () => {
     expect(childSafe.some((t) => t.name === "nicelist_pokes")).toBe(false);
     expect(childSafe.some((t) => t.name === "nicelist_rate")).toBe(false);
     expect(childSafe.some((t) => t.name === "nicelist_shop_list")).toBe(false);
+  });
+});
+
+describe("Analytics scrubber and privacy note", () => {
+  it("strips share tokens, list ids, emails, and hashes from page_location and omits all PII", () => {
+    expect(
+      scrubPageAddress("https://nicelist.co/list?t=secret-token&id=list-99#gift-1"),
+    ).toBe("https://nicelist.co/list");
+    const event = buildTrialEvent(
+      "reserve_gift",
+      "https://nicelist.co/list?t=secret-token",
+    );
+    expect(event).toEqual({
+      event: "reserve_gift",
+      page_location: "https://nicelist.co/list",
+    });
+    expect(JSON.stringify(event)).not.toContain("secret-token");
+  });
+
+  it("renders the required privacy note disclosures for pokes, Tag Manager, and the Chrome extension", () => {
+    render(
+      <AuthProvider>
+        <PrivacyPage />
+      </AuthProvider>,
+    );
+    expect(
+      screen.getByText(/poke the editors to add more gifts in a price band/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Google Tag Manager and Google Analytics/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nicelist Chrome extension/i),
+    ).toBeInTheDocument();
   });
 });

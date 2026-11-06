@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { AgentTools } from "@/components/AgentTools";
+import { TagManager } from "@/components/TagManager";
 import { AuthProvider } from "@/context/AuthContext";
 import { colors } from "@/styles/tokens.stylex";
 import "./globals.css";
@@ -41,6 +42,7 @@ export default function RootLayout({
         <AuthProvider>
           <Suspense fallback={null}>
             <AgentTools />
+            <TagManager />
           </Suspense>
           {children}
         </AuthProvider>

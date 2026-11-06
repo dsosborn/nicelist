@@ -127,6 +127,20 @@ test("trial journey: sign up, write a list, guest and friend shopping, poke, sho
   await expect(page.getByText("Purchased", { exact: true })).toBeVisible();
   await expect(page.getByText("Blackhawks tickets")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Bought by Sam");
+
+  // 8. GTM container loaded via gtm.js only (never gtag/js), and dataLayer events omit PII and share tokens
+  expect(world.gtmUrls.some((u) => u.includes("gtm.js?id=GTM-FIXTURE"))).toBe(
+    true,
+  );
+  expect(world.gtmUrls.some((u) => u.includes("gtag/js"))).toBe(false);
+  const dataLayerDump = await page.evaluate(() =>
+    JSON.stringify(window.dataLayer || []),
+  );
+  expect(dataLayerDump).toContain("reveal_list");
+  expect(dataLayerDump).not.toContain(adaList.shareToken);
+  expect(dataLayerDump).not.toContain("Navy cable sweater");
+  expect(dataLayerDump).not.toContain("Sam");
+  expect(dataLayerDump).not.toContain("ada@example.com");
 });
 
 test("friends-only link redirects signed-out visitor to sign-in, child-safe view hides claims and pokes locally, and WebMCP unregisters on sign-out", async ({

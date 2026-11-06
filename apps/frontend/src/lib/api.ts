@@ -3,6 +3,7 @@
 import "@/lib/amplify";
 
 import { generateClient } from "aws-amplify/api";
+import { trackTrialEvent } from "@/lib/analytics";
 import type {
   ClaimStatus,
   FriendPerson,
@@ -168,6 +169,7 @@ export async function createList(name: string) {
     `mutation ($name: String!) { createList(name: $name) { ${summaryFields} } }`,
     { name },
   );
+  trackTrialEvent("create_list");
   return data.createList;
 }
 
@@ -208,6 +210,7 @@ export async function revealList(id: string) {
     `mutation ($id: ID!) { revealList(id: $id) { ${ownerListFields} } }`,
     { id },
   );
+  trackTrialEvent("reveal_list");
   return data.revealList;
 }
 
@@ -277,6 +280,7 @@ export async function addGift(listId: string, input: GiftInput) {
     `mutation ($listId: ID!, ${giftArgs}) { addGift(listId: $listId, ${giftPass}) { ${ownerGiftFields} } }`,
     { listId, ...giftVars(input) },
   );
+  trackTrialEvent("add_gift");
   return data.addGift;
 }
 
@@ -355,6 +359,7 @@ export async function reserveGift(listId: string, giftId: string, note?: string)
     }`,
     { listId, giftId, note: note ?? null },
   );
+  trackTrialEvent("reserve_gift");
   return data.reserveGift;
 }
 
@@ -371,6 +376,7 @@ export async function setPurchased(
     }`,
     { listId, giftId, slot, purchased, note: note ?? null },
   );
+  if (purchased) trackTrialEvent("mark_purchased");
   return data.setPurchased;
 }
 

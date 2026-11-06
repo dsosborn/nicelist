@@ -23,6 +23,7 @@ import {
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
 import { fetchMe } from "@/lib/api";
+import { trackTrialEvent } from "@/lib/analytics";
 
 export type AuthUser = {
   userId: string;
@@ -115,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Sign in could not be completed. Please try again.");
       }
       await checkAuth();
+      trackTrialEvent("sign_in");
     },
     [checkAuth]
   );
@@ -138,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           userAttributes: { email: username },
         },
       });
+      trackTrialEvent("sign_up");
     },
     []
   );

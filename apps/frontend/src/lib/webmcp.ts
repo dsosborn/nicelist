@@ -1,6 +1,7 @@
 "use client";
 
 import * as api from "@/lib/api";
+import { trackTrialEvent } from "@/lib/analytics";
 
 export type Tool = {
   name: string;
@@ -252,6 +253,7 @@ export function buildNicelistTools(options: Options): Tool[] {
           run(async () => {
             const list = await api.fetchMyList(String(input.id));
             if (!list) return { error: "This list wasn't found." };
+            trackTrialEvent("copy_share_link");
             const origin =
               typeof location === "undefined" ? "" : location.origin;
             return {

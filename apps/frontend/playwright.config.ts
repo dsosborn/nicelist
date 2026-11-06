@@ -31,6 +31,7 @@ export default defineConfig({
         "nicelist-fixture.auth.us-east-1.amazoncognito.com",
       NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_IN: "http://127.0.0.1:3100/login",
       NEXT_PUBLIC_OAUTH_REDIRECT_SIGN_OUT: "http://127.0.0.1:3100/login",
+      NEXT_PUBLIC_GTM_ID: "GTM-FIXTURE",
     },
   },
 });

@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { app } from "@/app/appStyles";
 import { rememberReturnTo } from "@/lib/returnTo";
+import { trackTrialEvent } from "@/lib/analytics";
 import { setAgentChildSafe } from "@/lib/webmcp";
 import {
   addChild,
@@ -620,6 +621,7 @@ function ShareControl({
         {...stylex.props(app.button)}
         onClick={async () => {
           await navigator.clipboard?.writeText(href);
+          trackTrialEvent("copy_share_link");
           setCopied(true);
         }}
       >

@@ -81,6 +81,7 @@ export class TrialFixtureWorld {
   shopping: Record<string, Row[]> = {};
   ratings: Record<string, Row[]> = {};
   storeVisits: string[] = [];
+  gtmUrls: string[] = [];
   associateTag = "nicelist-20";
   seq = 1;
 
@@ -125,6 +126,7 @@ export class TrialFixtureWorld {
     });
 
     await page.route("https://www.googletagmanager.com/**", async (route) => {
+      this.gtmUrls.push(route.request().url());
       await route.fulfill({
         status: 200,
         contentType: "application/javascript",
