@@ -1,10 +1,7 @@
 import { util, runtime } from "@aws-appsync/utils";
 
 function person(rows, personId) {
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].sk === "PERSON#" + personId) return rows[i];
-  }
-  return null;
+  return rows.find((row) => row.sk === "PERSON#" + personId) || null;
 }
 
 export function request(ctx) {
@@ -125,7 +122,7 @@ export function request(ctx) {
         expressionNames: { "#on": "on" },
         expressionValues: util.dynamodb.toMapValues({
           ":personId": ctx.args.personId,
-          ":on": ctx.args.on,
+          ":on": ctx.args.again,
         }),
       },
     };
@@ -200,8 +197,8 @@ export function response(ctx) {
     return ctx.stash.result;
   }
   if (field === "setAgainNextYear") {
-    ctx.stash.result = ctx.args.on;
-    return ctx.args.on;
+    ctx.stash.result = ctx.args.again;
+    return ctx.args.again;
   }
   return ctx.stash.rows;
 }

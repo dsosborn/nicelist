@@ -51,18 +51,18 @@ export function response(ctx) {
   if (ctx.error) util.error("That gift isn't yours to change.");
   const claims = ctx.stash.claims || [];
   const status = ctx.info.fieldName === "releaseGift" ? "OPEN" : ctx.stash.nextStatus;
-  for (let i = 0; i < claims.length; i++) {
-    if (claims[i].slot === ctx.args.slot && claims[i].giftId === ctx.args.giftId) {
-      claims[i].status = status;
+  claims.forEach((claim) => {
+    if (claim.slot === ctx.args.slot && claim.giftId === ctx.args.giftId) {
+      claim.status = status;
       if (status === "OPEN") {
-        claims[i].shopperId = null;
-        claims[i].shopperName = null;
-        claims[i].shopperNote = null;
+        claim.shopperId = null;
+        claim.shopperName = null;
+        claim.shopperNote = null;
       } else if (ctx.stash.nextNote != null) {
-        claims[i].shopperNote = ctx.stash.nextNote;
+        claim.shopperNote = ctx.stash.nextNote;
       }
     }
-  }
+  });
   ctx.stash.result = shopperGiftView(
     ctx.stash.currentGift,
     claims,

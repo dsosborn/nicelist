@@ -16,11 +16,7 @@ export function request(ctx) {
 export function response(ctx) {
   ctx.stash.ratingRows = itemsOf(ctx.result);
   if (ctx.stash.shape === "received") {
-    const inbox = [];
-    for (let i = 0; i < ctx.stash.ratingRows.length; i++) {
-      const row = ctx.stash.ratingRows[i];
-      if (row.sk.indexOf("INBOX#") === 0) inbox.push(row);
-    }
+    const inbox = ctx.stash.ratingRows.filter((row) => row.sk.indexOf("INBOX#") === 0);
     ctx.stash.received = shapeReceived(
       ctx.stash.gifts || [],
       ctx.stash.claims || [],

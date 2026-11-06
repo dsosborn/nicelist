@@ -27,19 +27,22 @@ export function request(ctx) {
 
 export function response(ctx) {
   const items = itemsOf(ctx.result);
-  let chosen = null;
-  for (let i = 0; i < items.length; i++) {
-    const list = items[i];
-    if (ctx.args.childId && !canManage(list, ctx.stash.userId)) continue;
-    if (ctx.stash.person && ctx.stash.person.kind === "CHILD" && !canManage(list, ctx.stash.userId)) continue;
+  const eligible = items.filter((list) => {
+    if (ctx.args.childId && !canManage(list, ctx.stash.userId)) return false;
+    if (ctx.stash.person && ctx.stash.person.kind === "CHILD" && !canManage(list, ctx.stash.userId)) return false;
     if (ctx.stash.person && ctx.stash.person.kind === "FRIEND") {
-      if (list.visibility === "PRIVATE") continue;
-      if (list.visibility === "FRIENDS" && !contains(ctx.stash.friendIds || [], list.ownerId) && !contains(list.managerIds || [], ctx.stash.userId)) {
-        continue;
+      if (list.visibility === "PRIVATE") return false;
+      if (
+        list.visibility === "FRIENDS" &&
+        !contains(ctx.stash.friendIds || [], list.ownerId) &&
+        !contains(list.managerIds || [], ctx.stash.userId)
+      ) {
+        return false;
       }
     }
-    chosen = list;
-  }
+    return true;
+  });
+  const chosen = eligible.length ? eligible[eligible.length - 1] : null;
   if (ctx.args.childId && !chosen) util.error("This child wasn't found.");
   if (chosen) {
     ctx.stash.list = chosen;

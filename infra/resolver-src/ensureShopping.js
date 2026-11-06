@@ -2,9 +2,8 @@ import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
   const rows = ctx.stash.rows || [];
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].sk === "LIST") runtime.earlyReturn(rows[i]);
-  }
+  const existing = rows.find((row) => row.sk === "LIST");
+  if (existing) runtime.earlyReturn(existing);
   return {
     operation: "PutItem",
     key: util.dynamodb.toMapValues({ shopperId: ctx.stash.userId, sk: "LIST" }),
@@ -15,9 +14,7 @@ export function request(ctx) {
 
 export function response(ctx) {
   const rows = ctx.stash.rows || [];
-  let found = false;
-  for (let i = 0; i < rows.length; i++) if (rows[i].sk === "LIST") found = true;
-  if (!found) rows.push({ sk: "LIST", name: "Christmas 2026" });
+  if (!rows.find((row) => row.sk === "LIST")) rows.push({ sk: "LIST", name: "Christmas 2026" });
   ctx.stash.rows = rows;
   return rows;
 }

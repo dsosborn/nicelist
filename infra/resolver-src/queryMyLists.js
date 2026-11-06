@@ -14,11 +14,7 @@ export function request(ctx) {
 export function response(ctx) {
   const items = itemsOf(ctx.result);
   ctx.stash.myLists = items;
-  const summaries = [];
-  for (let i = 0; i < items.length; i++) {
-    if (!items[i].shareToken) continue;
-    summaries.push(listSummary(items[i]));
-  }
+  const summaries = items.filter((item) => item.shareToken).map((item) => listSummary(item));
   ctx.stash.result = summaries;
   return summaries;
 }

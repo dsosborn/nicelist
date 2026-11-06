@@ -44,14 +44,14 @@ export function response(ctx) {
   if (ctx.error) util.error("Already taken.");
   const claims = ctx.stash.claims || [];
   const choice = ctx.stash.choice;
-  for (let i = 0; i < claims.length; i++) {
-    if (claims[i].slot === choice.slot) {
-      claims[i].status = "RESERVED";
-      claims[i].shopperId = ctx.stash.userId;
-      claims[i].shopperName = profileName(ctx);
-      claims[i].shopperNote = ctx.stash.note;
+  claims.forEach((claim) => {
+    if (claim.slot === choice.slot) {
+      claim.status = "RESERVED";
+      claim.shopperId = ctx.stash.userId;
+      claim.shopperName = profileName(ctx);
+      claim.shopperNote = ctx.stash.note;
     }
-  }
+  });
   ctx.stash.result = shopperGiftView(
     ctx.stash.currentGift,
     claims,

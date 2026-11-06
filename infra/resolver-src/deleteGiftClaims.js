@@ -4,10 +4,7 @@ export function request(ctx) {
   const rows = ctx.stash.claims || [];
   if (!rows.length) runtime.earlyReturn({ ok: true });
   if (rows.length > 25) util.error("This gift is too large to delete at once.");
-  const keys = [];
-  for (let i = 0; i < rows.length; i++) {
-    keys.push(util.dynamodb.toMapValues({ listId: ctx.stash.listId, sk: rows[i].sk }));
-  }
+  const keys = rows.map((row) => util.dynamodb.toMapValues({ listId: ctx.stash.listId, sk: row.sk }));
   const tables = {};
   tables[tbl("claims")] = keys;
   return { operation: "BatchDeleteItem", tables: tables };

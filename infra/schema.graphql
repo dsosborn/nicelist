@@ -3,33 +3,33 @@ schema {
   mutation: Mutation
 }
 
-enum Visibility @aws_cognito_user_pools @aws_api_key {
+enum Visibility {
   PUBLIC
   FRIENDS
   PRIVATE
 }
 
-enum GiftKind @aws_cognito_user_pools @aws_api_key {
+enum GiftKind {
   PRODUCT
   CUSTOM
   EXPERIENCE
   MEMBERSHIP
 }
 
-enum TimingPhrase @aws_cognito_user_pools @aws_api_key {
+enum TimingPhrase {
   ANYTIME
   THIS_SEASON
   NEXT_SEASON
   PICK_LATER
 }
 
-enum MembershipPhrase @aws_cognito_user_pools @aws_api_key {
+enum MembershipPhrase {
   ANNUAL
   SEASON_PACKAGE
   DIGITAL
 }
 
-enum ClaimStatus @aws_cognito_user_pools @aws_api_key {
+enum ClaimStatus {
   OPEN
   RESERVED
   PURCHASED
@@ -307,7 +307,7 @@ type Mutation {
   ): PlannedGift! @aws_cognito_user_pools
   deletePlannedGift(personId: ID!, id: ID!): PlannedGift! @aws_cognito_user_pools
   setPlannedPurchased(personId: ID!, id: ID!, purchased: Boolean!): PlannedGift! @aws_cognito_user_pools
-  setAgainNextYear(claimId: ID!, personId: ID!, on: Boolean!): Boolean! @aws_cognito_user_pools
+  setAgainNextYear(claimId: ID!, personId: ID!, again: Boolean!): Boolean! @aws_cognito_user_pools
   deleteShoppingList: Boolean! @aws_cognito_user_pools
   askForIdeas(listId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools
   askForShoppingIdeas(personId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools

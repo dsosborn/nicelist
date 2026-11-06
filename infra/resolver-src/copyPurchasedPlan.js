@@ -3,12 +3,8 @@ import { util, runtime } from "@aws-appsync/utils";
 export function request(ctx) {
   if (ctx.info.fieldName !== "setPlannedPurchased" || !ctx.args.purchased) runtime.earlyReturn(null);
   const rows = ctx.stash.rows || [];
-  let plan = null;
-  let person = null;
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].sk === "PLAN#" + ctx.args.personId + "#" + ctx.args.id) plan = rows[i];
-    if (rows[i].sk === "PERSON#" + ctx.args.personId) person = rows[i];
-  }
+  const plan = rows.find((row) => row.sk === "PLAN#" + ctx.args.personId + "#" + ctx.args.id) || null;
+  const person = rows.find((row) => row.sk === "PERSON#" + ctx.args.personId) || null;
   if (!plan || !person || !person.refId) runtime.earlyReturn(null);
   return {
     operation: "PutItem",

@@ -1,8 +1,7 @@
 import { util, runtime } from "@aws-appsync/utils";
 
 function hasSk(rows, sk) {
-  for (let i = 0; i < rows.length; i++) if (rows[i].sk === sk) return rows[i];
-  return null;
+  return rows.find((row) => row.sk === sk) || null;
 }
 
 export function request(ctx) {

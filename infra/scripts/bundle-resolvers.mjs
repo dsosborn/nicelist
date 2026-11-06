@@ -15,21 +15,17 @@ function tbl(name) {
 }
 function defined(obj) {
   const out = {};
-  const keys = Object.keys(obj);
-  for (let i = 0; i < keys.length; i++) {
-    if (obj[keys[i]] !== undefined && obj[keys[i]] !== null) out[keys[i]] = obj[keys[i]];
-  }
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined && obj[key] !== null) out[key] = obj[key];
+  });
   return out;
 }
 function itemsOf(result) {
   return result && result.items ? result.items : [];
 }
 function findGift(gifts, id) {
-  const rows = gifts || [];
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].id === id) return rows[i];
-  }
-  return null;
+  const found = (gifts || []).find((row) => row.id === id);
+  return found || null;
 }
 function profileName(ctx) {
   if (ctx.stash.profile && ctx.stash.profile.displayName) return ctx.stash.profile.displayName;

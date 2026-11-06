@@ -3,17 +3,11 @@ import { util } from "@aws-appsync/utils";
 export function request(ctx) {
   const stars = ctx.args.stars;
   if (stars < 1 || stars > 5) util.error("Rate from 1 to 5 stars.");
-  const claims = ctx.stash.claims || [];
-  let purchased = false;
-  let title = "A gift";
-  for (let i = 0; i < claims.length; i++) {
-    if (claims[i].status === "PURCHASED") {
-      purchased = true;
-      if (claims[i].title) title = claims[i].title;
-    }
-  }
+  const purchasedClaims = (ctx.stash.claims || []).filter((claim) => claim.status === "PURCHASED");
+  const purchased = purchasedClaims.length > 0;
+  const fromClaims = purchasedClaims.reduce((acc, claim) => (claim.title ? claim.title : acc), "A gift");
   const gift = findGift(ctx.stash.gifts, ctx.args.giftId);
-  if (gift && gift.title) title = gift.title;
+  const title = gift && gift.title ? gift.title : fromClaims;
   if (!purchased) util.error("You can rate a gift after it is purchased.");
   ctx.stash.rateTitle = title;
   ctx.stash.rateStars = stars;

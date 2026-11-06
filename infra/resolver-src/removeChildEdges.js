@@ -6,14 +6,17 @@ export function request(ctx) {
     util.dynamodb.toMapValues({ userId: ctx.stash.userId, sk: "CHILD#" + childId }),
   ];
   const managers = ctx.stash.list ? managerIdsOf(ctx.stash.list) : [ctx.stash.userId];
-  for (let i = 0; i < managers.length; i++) {
-    keys.push(util.dynamodb.toMapValues({ userId: childId, sk: "MANAGED_BY#" + managers[i] }));
-    keys.push(util.dynamodb.toMapValues({ userId: managers[i], sk: "COMANAGER#" + childId }));
-    keys.push(util.dynamodb.toMapValues({ userId: managers[i], sk: "CHILD#" + childId }));
-  }
-  if (!keys.length) runtime.earlyReturn({ ok: true });
+  const extra = managers.reduce((acc, managerId) => {
+    return acc.concat([
+      util.dynamodb.toMapValues({ userId: childId, sk: "MANAGED_BY#" + managerId }),
+      util.dynamodb.toMapValues({ userId: managerId, sk: "COMANAGER#" + childId }),
+      util.dynamodb.toMapValues({ userId: managerId, sk: "CHILD#" + childId }),
+    ]);
+  }, []);
+  const allKeys = keys.concat(extra);
+  if (!allKeys.length) runtime.earlyReturn({ ok: true });
   const tables = {};
-  tables[tbl("relationships")] = keys.slice(0, 25);
+  tables[tbl("relationships")] = allKeys.slice(0, 25);
   return { operation: "BatchDeleteItem", tables: tables };
 }
 

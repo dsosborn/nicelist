@@ -2,10 +2,8 @@ import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
   const lists = ctx.stash.myLists || [];
-  let chosen = null;
-  for (let i = 0; i < lists.length; i++) {
-    if (lists[i].revealedAt && lists[i].recipientId === ctx.stash.userId) chosen = lists[i];
-  }
+  const matches = lists.filter((list) => list.revealedAt && list.recipientId === ctx.stash.userId);
+  const chosen = matches.length ? matches[matches.length - 1] : null;
   if (!chosen) {
     ctx.stash.claims = [];
     ctx.stash.listId = null;

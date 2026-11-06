@@ -6,10 +6,7 @@ export function request(ctx) {
   if (!list) runtime.earlyReturn(null);
   const managers = managerIdsOf(list).slice();
   if (field === "removeCoManager") {
-    const next = [];
-    for (let i = 0; i < managers.length; i++) {
-      if (managers[i] !== ctx.args.userId) next.push(managers[i]);
-    }
+    const next = managers.filter((managerId) => managerId !== ctx.args.userId);
     if (!next.length) next.push(list.ownerId);
     return {
       operation: "TransactWriteItems",

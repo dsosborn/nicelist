@@ -3,23 +3,21 @@ import { util, runtime } from "@aws-appsync/utils";
 export function request(ctx) {
   const gift = ctx.stash.gift;
   if (!gift) runtime.earlyReturn(null);
-  const ids = [];
-  for (let i = 0; i < gift.quantity; i++) ids.push(util.autoId());
+  const ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    .filter((slot) => slot <= gift.quantity)
+    .map(() => util.autoId());
   const slots = claimSlots(gift.id, gift.quantity, ids);
   ctx.stash.slots = slots;
-  const rows = [];
-  for (let i = 0; i < slots.length; i++) {
-    rows.push(
-      util.dynamodb.toMapValues({
-        listId: ctx.stash.list.id,
-        sk: slots[i].sk,
-        giftId: gift.id,
-        slot: slots[i].slot,
-        status: "OPEN",
-        claimId: slots[i].claimId,
-      }),
-    );
-  }
+  const rows = slots.map((slot) =>
+    util.dynamodb.toMapValues({
+      listId: ctx.stash.list.id,
+      sk: slot.sk,
+      giftId: gift.id,
+      slot: slot.slot,
+      status: "OPEN",
+      claimId: slot.claimId,
+    }),
+  );
   const tables = {};
   tables[tbl("claims")] = rows;
   return { operation: "BatchPutItem", tables: tables };
