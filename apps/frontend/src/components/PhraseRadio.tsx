@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { RadioGroup } from "radix-ui";
 import * as stylex from "@stylexjs/stylex";
 import { app } from "@/app/appStyles";
@@ -23,6 +24,7 @@ function SentenceRadioGroup<T extends string>({
   options: Record<T, string>;
   onChange: (value: T) => void;
 }) {
+  const baseId = useId();
   return (
     <RadioGroup.Root
       value={value}
@@ -32,23 +34,31 @@ function SentenceRadioGroup<T extends string>({
     >
       {(Object.keys(options) as T[]).map((item) => {
         const selected = item === value;
+        const itemId = `${baseId}-${item}`;
         return (
-          <label
+          <div
             key={item}
-            {...stylex.props(app.radioOption, selected && app.radioOptionSelected)}
+            {...stylex.props(
+              app.radioOption,
+              selected && app.radioOptionSelected,
+            )}
           >
             <RadioGroup.Item
+              id={itemId}
               value={item}
               aria-label={options[item]}
+              onFocus={() => {
+                if (item !== value) onChange(item);
+              }}
               {...stylex.props(app.radioDot)}
             >
               <RadioGroup.Indicator {...stylex.props(app.radioIndicator)} />
             </RadioGroup.Item>
-            <span>
+            <label htmlFor={itemId} style={{ cursor: "pointer" }}>
               {options[item]}
               {selected ? " (Selected)" : ""}
-            </span>
-          </label>
+            </label>
+          </div>
         );
       })}
     </RadioGroup.Root>

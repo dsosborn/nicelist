@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint .",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:ct": "playwright test -c playwright.ct.config.ts",
+    "test:e2e": "playwright test",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static"
   },
   "dependencies": {
     "@stylexjs/stylex": "^0.19.1",
@@ -21,6 +24,7 @@
   "devDependencies": {
     "@babel/core": "^8.1.0",
     "@playwright/test": "^1.65.0",
+    "@storybook/react-vite": "^10.6.6",
     "@stylexjs/babel-plugin": "^0.19.1",
     "@stylexjs/postcss-plugin": "^0.19.1",
     "@testing-library/jest-dom": "^7.0.1",
@@ -35,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "jsdom": "^31.0.0",
+    "storybook": "^10.6.6",
     "typescript": "^5",
     "vitest": "^5.1.0"
   }
