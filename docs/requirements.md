@@ -8,7 +8,7 @@ The soft launch is one season and one list per person is enough. Each list is pu
 
 The Christmas trial in section 2 is the product. A signed-in person lands on their wishlist at `/list`. A share link is `/list?t=`. The shopping list is `/shopping`, friends are `/friends`, and the privacy note is `/privacy`.
 
-Accounts are Cognito email/password with SRP, plus Google. The browser is a static Next.js export talking to AppSync. Owner, shopper, and guest responses are different shapes. The guest read is the only API-key field. Lists, gifts, claims, profiles, relationships, the shopping list, and ratings are on-demand DynamoDB tables. Gift ideas go through one Lambda to Bedrock. Ordinary reads and writes stay in AppSync JavaScript resolvers.
+Accounts are Cognito email/password with SRP, plus Google. The browser is a static Next.js export talking to AppSync. Owner, shopper, and guest responses are different shapes. The guest read is the only API-key field. Lists, gifts, claims, pokes, profiles, relationships, the shopping list, and ratings are on-demand DynamoDB tables. Gift ideas go through one Lambda to Bedrock. Ordinary reads and writes stay in AppSync JavaScript resolvers. A Chrome extension in this monorepo adds the product on the page the owner is already viewing when Nicelist is closed.
 
 ## 2. Soft launch
 
@@ -22,7 +22,7 @@ A person can sign up, write a wishlist, send one link, and let those people shop
 - New lists default to **public**, so the link they text to the family works. The owner can change visibility later. The control is three sentences: “Anyone with the link can shop this,” “Only friends can open this,” and “Only me.”
 - On the adult’s own list, the page always shows the promise: people can mark gifts as taken, and they will not see that until they reveal the list.
 - A list shows its items in the order they were added. Reordering can wait.
-- The owner can delete a list. That delete also removes every item and reservation on it, and the mutation returns the deleted list.
+- The owner can delete a list. That delete also removes every item, reservation, and poke on it, and the mutation returns the deleted list.
 - An empty list offers a product link, a custom gift, an experience, or a membership.
 
 ### Items
@@ -69,14 +69,14 @@ The adult and the child are different people to everyone else. Friends, and anyo
 - The adult can switch that list to the view the child would see, with claims hidden, for when the child is looking at the screen. That view is local. It does not change what the API returns to a shopper, and it is not the view the adult lands on.
 - Another adult can be invited as a co-manager of a child. A co-manager can edit that child’s list and see claims. They are not the recipient. Removing a co-manager takes that access away.
 - A child’s friends-only list uses the managing adults’ accepted friends, because the child has no friend list of their own.
-- Removing a child removes that child’s lists, gifts, and reservations.
+- Removing a child removes that child’s lists, gifts, reservations, and pokes.
 
 ### Friends
 
 - A signed-in person can send a friend request to another account by email.
 - The recipient sees incoming requests and can accept or decline. The sender sees pending requests and can cancel one.
 - Friendship is mutual and starts only when the request is accepted. A person is not their own friend. A second request to someone who is already a friend, or who already has a pending request either way, is rejected.
-- Either friend can remove the friendship. Removal takes effect on the next visit: friends-only lists on both sides disappear for the other person.
+- Either friend can remove the friendship. Removal takes effect on the next visit: friends-only lists on both sides disappear for the other person, and open pokes between them are removed.
 - Friends are listed with their display names. Requests wait in the app. Email when a request arrives waits until after the trial.
 - Declining, canceling, and removing do not notify the other person with a reason.
 
@@ -98,7 +98,7 @@ The owner can always see and edit their own list. A shopper is anyone else allow
 
 ### Reservations, purchases, and reveal
 
-While a list is open, the owner sees the wishlist they wrote: title, link, notes, price, and quantity. The owner API omits reserved, purchased, shopper name, shopper notes, open-counts, and click activity. Hiding those fields in the browser is not enough.
+While a list is open, the owner sees the wishlist they wrote: title, link, notes, price, and quantity. The owner API omits reserved, purchased, shopper name, shopper notes, open-counts, and click activity. Hiding those fields in the browser is not enough. The owner API does include open pokes on that list: the friend’s display name and the band. A poke is not a claim.
 
 Signed-in shoppers see:
 
@@ -155,9 +155,23 @@ What the model receives is only what that person is already allowed to use for t
 
 Nothing is saved until the person accepts an idea.
 
-- On a list they edit, including a child’s list, accepting an idea adds it. A thing to own is a custom gift with that title and price. An experience keeps its timing phrase. A membership keeps **Annual**, **Season package**, or **Digital**. The child-safe view does not offer ideas.
+- On a list they edit, including a child’s list, accepting an idea adds it. A thing to own is a custom gift with that title and price. An experience keeps its timing phrase. A membership keeps **Annual**, **Season package**, or **Digital**. The child-safe view does not offer ideas or show pokes.
 - On a shopping list, accepting an idea adds a private planned gift for that person. It is not written onto their wishlist.
-- A guest, and a shopper on someone else’s list page, cannot ask for ideas there.
+- A guest cannot ask for ideas. A shopper on someone else’s list cannot ask for ideas there.
+
+A friend looking at that list can poke them to add more gifts in one price band. The bands are the same three. The poke is offered when that band is thin: fewer than three gifts have a price in it. That covers a list with too few ideas, and a list with nothing in the range they want to spend. Gifts with no price do not fill a band. The friend chooses the band. The button reads **Poke for more ideas under $25**, **Poke for more ideas from $25 to $75**, or **Poke for more ideas over $75**. A band that already has three priced gifts has no poke.
+
+The sender is a signed-in accepted friend of the adult who owns the list. On a child’s list, that is an accepted friend of a managing adult. A person who edits the list does not poke it. Someone who can open a public list and is not a friend does not get the button. A guest does not. A private list is not visible, so it cannot be poked. A name with no account cannot be poked.
+
+One open poke per friend, per list, per band. Poking again returns that poke. The poke does not call the model, does not add a gift, and does not reserve one.
+
+The people who edit the list see each open poke on that list. The line is **Sam poked you for more ideas under $25**, using the friend’s display name and the band they chose. It sits with the idea prompt for that band. They can ask for ideas in that band, add a gift themselves, or dismiss that poke. **Dismiss** clears it. Dismissing does not tell the sender why, and it does not use an alert dialog. On a child’s list every managing adult sees the same pokes, and a dismiss clears that poke for all of them. The child-safe view hides pokes. That hide is local, the same way claim details are hidden there.
+
+The sender sees only their own poke, as **You poked Sam for more ideas under $25**, until it is dismissed or the band is no longer thin. They do not see anyone else’s poke, and they do not learn whether the editors asked for ideas. When the band has three priced gifts, open pokes for that band are finished. The sender is not notified. The new gifts are on the list the next time they open it. A later gap needs a new poke.
+
+A poke is not a claim. Editors learn that this friend wants more gifts in that band. They do not learn what is reserved or purchased. Other shoppers do not see it. The guest response omits pokes. The shopper response includes only that caller’s own open pokes on the list. The editor response includes every open poke, and those fields are not claim fields. The pre-reveal filter does not strip them. Ending the friendship removes the open pokes between those people. Deleting the list or the child removes the pokes on those lists.
+
+The same action is on the shopping list, under each list the shopper can already open for that person. It is the same poke, not a second one. The poke waits in the app. Nicelist does not email it.
 
 A recipient rates a gift after they have it, from 1 to 5 stars. The stars are how that gift was. They are not a vote on a suggestion before anyone buys it.
 
@@ -220,20 +234,39 @@ The trial stays on the current serverless stack: a static Next.js export, Cognit
 - The static export is served from a private S3 bucket through CloudFront, over HTTPS, at `https://nicelist.co`. ACM provides the certificate for that name. Route 53 hosts the `nicelist.co` zone. A CloudFront Function rewrites extensionless paths such as `/login` to the exported file. Share links use that origin.
 - Direct loads work for `/`, `/login`, `/signup`, `/confirm`, `/forgot-password`, and the list page, including a public list opened while signed out.
 - Share links work as a token on a page that exists in the export, so S3 does not 404 unknown dynamic paths.
-- Production build receives the public Cognito and AppSync values, including the AppSync API key used only for the guest read. Secrets stay out of the client bundle. Google’s client secret lives in SSM Parameter Store. Terraform reads it. It is not committed in tfvars.
-- The app source, including the frontend, is in the monorepo and pushed to a remote.
-- `schema.graphql` is checked in and applied to the AppSync API, with generated client types. Resolvers are AppSync JavaScript. Unit tests cover the owner payload before reveal, the owner payload after reveal, the shopper and managing-adult payload, and a second reserve of the last quantity.
+- Production build receives the public Cognito and AppSync values, including the AppSync API key used only for the guest read. It also receives the public Google Tag Manager container id. Secrets stay out of the client bundle. Google’s client secret lives in SSM Parameter Store. Terraform reads it. It is not committed in tfvars. The GA4 measurement id stays in the Tag Manager container.
+- The app source, including the frontend and the Chrome extension, is in the monorepo and pushed to a remote.
+- `schema.graphql` is checked in and applied to the AppSync API, with generated client types. Resolvers are AppSync JavaScript. Unit tests cover the owner payload before reveal, the owner payload after reveal, the shopper and managing-adult payload, and a second reserve of the last quantity. They also cover open pokes on the editor payload, the caller’s own poke on the shopper payload, and no pokes on the guest payload.
 - Terraform state is in an encrypted, versioned S3 backend with a DynamoDB lock. The AWS profile is not hardcoded. A second workspace holds a dev stack, so the Christmas tables are not the only place changes are applied.
 - Tables are on-demand, with point-in-time recovery. The user pool and tables have deletion protection. The AppSync role has no DynamoDB `Scan` permission.
 - AppSync logs resolver errors, with a short CloudWatch retention, so a failed reservation can be diagnosed. Full request and response logging stays off.
-- GitHub Actions with AWS OIDC typechecks, lints, plans Terraform on pull requests, publishes the static export, and applies infrastructure. Deploy does not depend on one laptop or a long-lived access key.
+- GitHub Actions with AWS OIDC typechecks, lints, runs the Vitest, Playwright component, and Playwright integration tiers, and plans Terraform on pull requests. It publishes the static export and applies infrastructure. After that deploy, the Playwright smoke tier runs against the deployed environment. Deploy does not depend on one laptop or a long-lived access key.
 - The stack stays out of a VPC. There is no NAT Gateway, no database server, and no second API.
+
+### Testing
+
+The app has four test tiers. A check sits in the lowest tier that can prove it. The resolver unit tests named above stay in Node and keep covering the payload matrix. Vitest does not reimplement that matrix.
+
+- Vitest and React Testing Library cover unit tests. They render a component or call a function in jsdom. They cover validation, the words on a control, and how the client shapes a request. They do not open a browser, and they do not call Cognito, AppSync, Google, SES, or Bedrock.
+- Playwright component tests mount one composite in a real browser. They cover focus, keyboard, and layers: **Did you buy it?**, the alert dialogs, the radio groups for visibility and for an experience or membership phrase, the list menu, and **More details**. They do not sign anyone in or walk from page to page.
+- Playwright integration tests run in GitHub Actions on every pull request. They drive the trial journeys end to end with fixtures standing in for the other vendors: Cognito, Google, AppSync, SES, Bedrock, and the store a **Buy** link would open. A person can sign up, write a list, open a share link, shop as a guest and as a signed-in friend, reveal, and use the shopping list, without a live AWS account or a real merchant. The screen follows the same hiding rules as the API. Before reveal the owner does not see who claimed a gift, and a guest does not see a shopper’s name.
+- Playwright smoke tests run against the deployed environment after a release. They open `/`, `/login`, `/signup`, `/confirm`, `/forgot-password`, `/privacy`, and a public list while signed out. Sign-in from a list link returns to that list. The run uses real CloudFront, Cognito, and AppSync. It stays a short check of that deploy. It does not build a season of wishlists, and it does not replace the integration suite.
+
+### Analytics
+
+The static export loads Google Tag Manager. GA4 is a tag inside that container. The page does not also load a gtag.js snippet. The container id is a public build value. A missing id leaves the page working and sends nothing.
+
+The container loads after the first paint. A public list still shows its gifts without waiting on Google. The container is not an ad slot. The trial still has no ads and no sponsored products.
+
+The app pushes a data layer event for a page view and for the trial actions: sign-up, sign-in, creating a list, adding a gift, copying a share link, reserving a gift, marking it purchased, revealing a list, and opening the shopping list. An event names the action. It does not include an email address, a display name, a gift title, a note, a price, a share token, a list id, a claim id, or a shopper name. The page address sent with the event has the share token removed. A child is not reported as a separate person. Nothing in the event says who reserved or bought a gift.
+
+Local development, Vitest, Playwright component tests, and Playwright integration tests do not load the real container. A fixture stands in for Tag Manager the same way a fixture stands in for the other vendors. The smoke run against the deployed site may load the real container.
 
 ### Data rules that stay true
 
 - Who can read items or create a reservation follows the list’s visibility. A public list can be read without an account and returns the guest shape only: gifts, shopping notes, and open, reserved, or purchased, with no names. Reserving requires a signed-in caller. Friends-only and private reads still require a user token. Item access does not follow “who created this row.”
 - A caller who is not allowed to see a list cannot read it or reserve on it. The response does not reveal whether that list exists.
-- Owner and shopper responses are different shapes. Before reveal, the adult’s own-list payload has no reservation, purchase, shopper, shopper-note, open-count, or click fields. After reveal it includes purchased quantities and still omits shopper identity. A managing adult’s payload for a child’s list includes the same claim fields a shopper sees. The signed-in shopper payload includes shopping notes and shopper names.
+- Owner and shopper responses are different shapes. Before reveal, the adult’s own-list payload has no reservation, purchase, shopper, shopper-note, open-count, or click fields. After reveal it includes purchased quantities and still omits shopper identity. A managing adult’s payload for a child’s list includes the same claim fields a shopper sees. The signed-in shopper payload includes shopping notes and shopper names. People who edit a list receive every open poke on it: display name and band. A shopper payload includes only that caller’s own open pokes. A guest payload includes none. Poke fields are not claim fields, and the pre-reveal owner filter does not strip them.
 - The API rejects oversized fields instead of storing them.
 
 ### Trial data and API
@@ -247,17 +280,18 @@ Tables stay on-demand.
 - **Lists.** The owner is the adult’s Cognito id. The recipient is that adult or a child. Visibility, name, `revealedAt`, and a rotatable share token. The token is indexed separately from the list id.
 - **Gifts.** Partition key is the list id. Sort key is created-at plus the gift id, so the list is in add order. Kind is product, custom, experience, or membership. Title, clean product URL, price, notes, and quantity. An experience has one timing phrase. A membership has one membership phrase. No claim fields. No showtime, start date, game list, or account.
 - **Claims.** One item per quantity slot. Status is open, reserved, or purchased, plus the shopper id, the shopper note, and the claim id used as the click id. The owner’s pre-reveal path does not read this table. After reveal it may read status only.
+- **Pokes.** One open item per sender, list, and price band. Sender id, list id, band, and when it was sent. Editors of the list can read all of them. A shopper read returns only that caller’s own. A guest read returns none. Ending the friendship deletes the open pokes between those two people. Deleting a list or a child deletes the pokes on those lists. Dismissing a poke, or the band reaching three priced gifts, removes it. A poke is not a claim.
 - **Shopping list.** One per shopper for the trial. Name, and the people on it. A person is a profile or child the shopper can already see, or a stable name-only row. A standing note is per shopper and person, not per year. Private planned gifts belong to the shopper and the person. A reserved wishlist gift is shown from the claim. It is not copied into a second reservation. **Again next year** is a shopper-only mark on a gift they bought.
 
-Deleting a list, a gift, or a child deletes the dependent gifts and claims in that same mutation.
+Deleting a list, a gift, or a child deletes the dependent gifts and claims in that same mutation. Deleting a list or a child also deletes pokes on those lists.
 
 ### Assistant tools (WebMCP)
 
 A signed-in Nicelist tab registers tools with `document.modelContext.registerTool` so a browser agent can do what that person can already do on the page. Nicelist does not embed its own assistant. Browsers without `document.modelContext` keep working. The tools call the same client functions as the buttons, and the API still enforces who can see what. Adding a gift this way is not a partner click and does not reserve it.
 
-Owner and friend tools register on any signed-in page, including a background tab, so an agent can add a gift while the person is looking at a store. They work only while Nicelist is open and signed in. A product page with Nicelist closed waits for the browser extension, after the trial. Shopper tools register only on a list that person is allowed to shop. Every registration is aborted when the person signs out, leaves the page, or switches view. The child-safe local view registers no claim fields. Nothing is exposed to another origin.
+Owner and friend tools register on any signed-in page, including a background tab, so an agent can add a gift while the person is looking at a store. They work only while Nicelist is open and signed in. A product page with Nicelist closed uses the Chrome extension, which is part of the trial. Shopper tools register only on a list that person is allowed to shop. Every registration is aborted when the person signs out, leaves the page, or switches view. The child-safe local view registers no claim fields. Nothing is exposed to another origin.
 
-Deletes, reveal, deleting the shopping list, and ending a friendship or a co-management are marked consequential. Reads are marked read-only. A tool returns a structured error the agent can read. It does not throw for a mistake the agent can fix, such as a missing list or a quantity that is already taken.
+Deletes, reveal, deleting the shopping list, ending a friendship or a co-management, and poking a friend for ideas are marked consequential. Reads are marked read-only. Dismissing a poke is not. A tool returns a structured error the agent can read. It does not throw for a mistake the agent can fix, such as a missing list or a quantity that is already taken.
 
 The owner tools, for lists that adult manages:
 
@@ -265,6 +299,7 @@ The owner tools, for lists that adult manages:
 - Read a list they manage. Before reveal, the adult’s own list returns title, link, notes, price, and quantity. After reveal it may add which quantities were purchased, still without a shopper name. A child’s list returns the shopper shape, including who claimed each gift.
 - Add a gift to a list they manage. The agent supplies the list, an optional title, the product URL if it has one, and optional notes, price, and quantity. The URL is stored exactly. A custom gift is a title with no URL. An experience includes a timing phrase. A membership includes **Annual**, **Season package**, or **Digital**. The same validation as the form applies: an empty custom title is rejected, a product needs a link, an experience or membership needs a title, and quantity is at least 1. A title with no link is a custom gift, including a thing to buy at a shop counter.
 - Ask for a few gift ideas for a list they edit, in a price band. The tool returns the ideas and does not save one. Adding it uses the add-gift tool. The child-safe view does not register this tool.
+- Read open pokes on a list they manage: the friend’s display name and the band. Dismiss one. No claim fields. The child-safe view does not register these tools.
 - After reveal, rate a gift they received from 1 to 5 stars, including a purchased suggestion that was not on the list. The response includes no giver and no other rater. The child-safe view does not register this tool.
 - Edit a gift’s title, link, notes, price, or quantity.
 - Delete a gift, or delete a list they manage.
@@ -279,6 +314,7 @@ Shopping-list tools register on any signed-in page. They return only this shoppe
 - Add or remove a person.
 - Add, edit, or delete a private planned gift for a person on it.
 - Ask for a few gift ideas for a person on it when a price band is thin. The tool returns the ideas and does not save one. Adding it uses the planned-gift tool. The ideas follow the gift-idea rules.
+- Poke a friend for more ideas in a thin band on a list this shopper can open. It is the same poke as on the list page. A person with no account, a private list, and a list this shopper edits cannot be poked.
 - Reserve, mark purchased, or release a wishlist gift that already appears under that person, with the same rules as the shopper tools.
 
 The shopper tools register only while that person is viewing a list they are allowed to shop, and not on a list where they are the recipient:
@@ -287,6 +323,7 @@ The shopper tools register only while that person is viewing a list they are all
 - Reserve a quantity (**I’ll get this**). A second reserve of the last quantity returns the same “already taken” result as the button. Reserving again when this shopper already holds it returns that claim.
 - Mark that claim purchased, set it back to reserved, or release it. Only the person who claimed it can do these.
 - Save the one line other shoppers see, such as “getting the blue one.”
+- Poke for more ideas in a thin price band, when the viewer is an accepted friend and does not edit the list. The tool returns that caller’s open poke and does not save an idea. Poking again returns the same poke.
 
 A signed-out visitor on a public list gets one read tool, in the guest shape: gifts, shopping notes, and open, reserved, or purchased, with no names. Reserving is not registered until they are signed in.
 
@@ -297,12 +334,23 @@ Friend tools, on any signed-in page:
 - Accept, decline, or cancel a request.
 - Remove a friendship.
 
+### Browser extension
+
+The extension is how someone adds the product they are already looking at when Nicelist is not open. While a signed-in Nicelist tab is open, the assistant tools can do that job too. The Chrome extension is part of the Christmas trial. Its source lives in this monorepo, and GitHub Actions typechecks and tests it with the rest of the pull request. Safari waits until the Chrome extension is solid.
+
+- On a product page, the signed-in owner can add it to a list they choose. The extension sends the title, the full URL, and the price. Those fields use the same gift rules as the site. The trial does not store an image. Uploading a gift image to S3 waits until after the trial.
+- It also reads the selected size, color, or variant from that live page and puts it in the note, which the owner can edit before saving. It keeps variant query parameters and a variant id in the URL. It does not substitute the canonical or parent-product URL. If it cannot tell which option is selected, it leaves the note blank.
+- Adding uses the same API as the site. The extension shows the owner view only, so it cannot reveal who reserved a gift.
+- The owner signs in with the same account as the site. The token stays in the extension.
+- The Chrome Web Store listing is published before the trial group is invited. The listing says which pages it reads and that those product fields are sent to Nicelist.
+- Adding a gift is not a partner click. Partner tags belong on shopper buy links in the app.
+
 ### Trial boundaries
 
 - The list page has no ads and no sponsored products. The only commercial notice is the partner-link disclosure.
 - Mail is limited to verification codes and password resets. Nicelist does not send newsletters or promotional email.
 - A public list’s first screen shows the gifts. It does not wait on a product-page fetch or a group the visitor has to join.
-- There is a short privacy note covering the adult’s email, Google sign-in, guest views of public lists, child profiles with no login of their own, the fact that claim details stay hidden from the recipient, and the fact that a shopping list is private to the shopper. It also says gift titles, notes, and prices the person can already see may be sent to generate gift ideas, and that a rating of a gift they received is anonymous to other people, including the giver. The trial does not collect age or gender. The note also says a browser agent can use the signed-in tab to take the same actions as the person, and that it cannot see claim details the person cannot see.
+- There is a short privacy note covering the adult’s email, Google sign-in, guest views of public lists, child profiles with no login of their own, the fact that claim details stay hidden from the recipient, and the fact that a shopping list is private to the shopper. It also says gift titles, notes, and prices the person can already see may be sent to generate gift ideas, that a friend who can see a list can poke them to add gifts in a price band and the editors see that friend’s name, and that a rating of a gift they received is anonymous to other people, including the giver. The trial does not collect age or gender. The note also says a browser agent can use the signed-in tab to take the same actions as the person, and that it cannot see claim details the person cannot see. It says Nicelist uses Google Tag Manager and Google Analytics to measure how the site is used, and that those events do not include the contents of a list, the share token, or who claimed a gift. It says the Chrome extension, signed in with the same account, can read the product page the owner is viewing and send the title, the full URL, the price, and the selected size or color to Nicelist, and that it shows the owner view only.
 - Gift ideas are not sponsored, and they are not partner links. The list still works when ideas are unavailable.
 
 ## 3. Post-soft launch
@@ -332,7 +380,7 @@ A custom gift can collect money toward a cost, such as a trip. This waits until 
 ### Shopping help
 
 - Paste a product URL and fill title, price, and image from the page. The trial saves the link and a title the owner types. It does not fetch the product page. When a fetch is added, a failure leaves the URL in place. A fetch may read size and color from the URL or from structured data for that exact URL. It does not follow a canonical link to a parent product, and it does not invent a variant when the page shows the default one.
-- Images uploaded for a gift, stored in S3.
+- Images uploaded for a gift, stored in S3. The Chrome extension can then send the image it reads from the product page.
 - Show the buyer’s name to the owner after reveal, for thank-you notes.
 
 ### Taste profile
@@ -357,19 +405,13 @@ Those fields change the anonymous line when a cohort of people who received the 
 
 ### Browser extension
 
-The extension is how someone adds the product they are already looking at when Nicelist is not open. While a signed-in Nicelist tab is open, the trial’s assistant tools do that job instead. The extension is planned, and it is not part of the Christmas trial. Chrome first. Safari after that one is solid.
-
-- On a product page, the signed-in owner can add it to a list they choose. The extension sends the title, the full URL, the price, and the image from the page they are looking at.
-- It also reads the selected size, color, or variant from that live page and puts it in the note, which the owner can edit before saving. It keeps variant query parameters and a variant id in the URL. It does not substitute the canonical or parent-product URL. If it cannot tell which option is selected, it leaves the note blank.
-- Adding uses the same API as the site. The extension shows the owner view only, so it cannot reveal who reserved a gift.
-- The owner signs in with the same account as the site. The token stays in the extension.
-- The store listing says which pages it reads and that those product fields are sent to Nicelist.
-- Adding a gift is not a partner click. Partner tags belong on shopper buy links in the app.
+- Safari, after the Chrome extension in the trial is solid.
+- Sending the product image the Chrome extension reads on the page, once gift images are stored in S3.
 
 ### Collaboration
 
 - Live updates when someone else reserves a gift, so two open tabs do not race on stale quantity.
-- Email when a friend request arrives, and email to other shoppers when a gift they can see is reserved or purchased. The owner gets no mail about reserves or purchases before they reveal the list.
+- Email when a friend request arrives, email when a friend pokes them for ideas, and email to other shoppers when a gift they can see is reserved or purchased. The owner gets no mail about reserves or purchases before they reveal the list.
 - Sharing one private list with a specific person who is not a friend, without changing that list’s visibility.
 - Comments on a gift between shoppers, hidden from the owner.
 - A shopper can suggest a gift the recipient does not see. Other shoppers see it and can claim it. Managing adults already add those gifts on a child’s list during the trial. A private planned gift on a shopping list stays visible only to the shopper who wrote it.
