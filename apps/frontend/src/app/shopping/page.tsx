@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { AppHeader } from "@/components/AppHeader";
+import { BuyDialog, giftTitle } from "@/components/BuyDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { GiftForm } from "@/components/GiftForm";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ShopperPokeSection } from "@/components/ShopperPokeSection";
 import { app } from "@/app/appStyles";
 import {
   addPlannedGift,
   addShoppingPerson,
+  askForShoppingIdeas,
   deletePlannedGift,
   deleteShoppingList,
   dollars,
@@ -16,6 +20,7 @@ import {
   fetchMyLists,
   fetchShoppingList,
   fetchShoppingPerson,
+  membershipCopy,
   releaseGift,
   removeShoppingPerson,
   renameShoppingList,
@@ -24,10 +29,15 @@ import {
   setPlannedPurchased,
   setPurchased,
   setStandingNote,
+  thinBands,
+  timingCopy,
   type FriendsView,
+  type GiftIdea,
   type ListSummary,
-  type ShoppingList,
+  type Poke,
+  type PriceBand,
   type ShopperGift,
+  type ShoppingList,
 } from "@/lib/api";
 
 export default function ShoppingPage() {
@@ -39,26 +49,45 @@ export default function ShoppingPage() {
   );
 }
 
+type PersonGiftState = {
+  listId: string | null;
+  gifts: ShopperGift[];
+  myPokes: Poke[];
+};
+
 function ShoppingBody() {
   const [list, setList] = useState<ShoppingList | null>(null);
   const [friends, setFriends] = useState<FriendsView | null>(null);
   const [children, setChildren] = useState<ListSummary[]>([]);
-  const [gifts, setGifts] = useState<Record<string, { listId: string | null; gifts: ShopperGift[] }>>({});
+  const [gifts, setGifts] = useState<Record<string, PersonGiftState>>({});
   const [name, setName] = useState("");
   const [personName, setPersonName] = useState("");
   const [error, setError] = useState("");
+
+  async function loadPeopleGifts(people: ShoppingList["people"]) {
+    const entries = await Promise.all(
+      people
+        .filter((person) => person.refId)
+        .map(async (person) => {
+          const result = await fetchShoppingPerson(person.id);
+          return [
+            person.id,
+            {
+              listId: result?.listId ?? null,
+              gifts: result?.gifts ?? [],
+              myPokes: result?.myPokes ?? [],
+            },
+          ] as const;
+        }),
+    );
+    return Object.fromEntries(entries);
+  }
 
   async function reload() {
     const next = await fetchShoppingList();
     setList(next);
     setName(next.name);
-    const loaded: Record<string, { listId: string | null; gifts: ShopperGift[] }> = {};
-    for (const person of next.people) {
-      if (!person.refId) continue;
-      const result = await fetchShoppingPerson(person.id);
-      loaded[person.id] = { listId: result?.listId ?? null, gifts: result?.gifts ?? [] };
-    }
-    setGifts(loaded);
+    setGifts(await loadPeopleGifts(next.people));
   }
 
   useEffect(() => {
@@ -68,19 +97,44 @@ function ShoppingBody() {
         setName(shopping.name);
         setFriends(friendView);
         setChildren(lists.filter((item) => item.isChild));
-        const loaded: Record<string, { listId: string | null; gifts: ShopperGift[] }> = {};
-        for (const person of shopping.people) {
-          if (!person.refId) continue;
-          const result = await fetchShoppingPerson(person.id);
-          loaded[person.id] = { listId: result?.listId ?? null, gifts: result?.gifts ?? [] };
-        }
-        setGifts(loaded);
+        setGifts(await loadPeopleGifts(shopping.people));
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load the shopping list."));
+      .catch((err) =>
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not load the shopping list.",
+        ),
+      );
   }, []);
 
-  if (error) return <main {...stylex.props(app.page)}><p {...stylex.props(app.error)}>{error}</p></main>;
-  if (!list) return <main {...stylex.props(app.page)}><p>Loading…</p></main>;
+  if (error) {
+    return (
+      <main {...stylex.props(app.page)}>
+        <p role="alert" {...stylex.props(app.error)}>{error}</p>
+      </main>
+    );
+  }
+  if (!list) {
+    return (
+      <main {...stylex.props(app.page)}>
+        <p>Loading…</p>
+      </main>
+    );
+  }
+
+  const claimedWishlistCents = Object.values(gifts).reduce((sum, entry) => {
+    return (
+      sum +
+      entry.gifts.reduce((giftSum, gift) => {
+        const mineCount = gift.slots.filter(
+          (slot) => slot.mine && slot.status !== "OPEN",
+        ).length;
+        return giftSum + (gift.price ?? 0) * mineCount;
+      }, 0)
+    );
+  }, 0);
+  const totalCents = list.totalCents + claimedWishlistCents;
 
   return (
     <main {...stylex.props(app.page)}>
@@ -93,69 +147,162 @@ function ShoppingBody() {
         }}
       >
         <label htmlFor="shopping-name">Shopping list name</label>
-        <input id="shopping-name" value={name} onChange={(event) => setName(event.target.value)} {...stylex.props(app.input)} />
-        <button type="submit" {...stylex.props(app.quiet)}>Rename</button>
+        <input
+          id="shopping-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          {...stylex.props(app.input)}
+        />
+        <button type="submit" {...stylex.props(app.quiet)}>
+          Rename
+        </button>
       </form>
-      <p>Total {dollars(list.totalCents)}</p>
+      <p>Total {dollars(totalCents)}</p>
       <form
         {...stylex.props(app.row)}
         onSubmit={async (event) => {
           event.preventDefault();
+          if (!personName.trim()) return;
           await addShoppingPerson(personName, "NAME");
           setPersonName("");
           await reload();
         }}
       >
-        <input aria-label="Person with no account" placeholder="Add someone, such as Grandpa" value={personName} onChange={(event) => setPersonName(event.target.value)} {...stylex.props(app.input)} />
-        <button type="submit" {...stylex.props(app.quiet)}>Add name</button>
+        <input
+          aria-label="Person with no account"
+          placeholder="Add someone, such as Grandpa"
+          value={personName}
+          onChange={(event) => setPersonName(event.target.value)}
+          {...stylex.props(app.input)}
+        />
+        <button type="submit" {...stylex.props(app.quiet)}>
+          Add name
+        </button>
       </form>
       <div {...stylex.props(app.row)}>
         {friends?.friends.map((friend) => (
-          <button key={friend.userId} type="button" {...stylex.props(app.quiet)} onClick={async () => { await addShoppingPerson(friend.displayName, "FRIEND", friend.userId); await reload(); }}>
+          <button
+            key={friend.userId}
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              await addShoppingPerson(
+                friend.displayName,
+                "FRIEND",
+                friend.userId,
+              );
+              await reload();
+            }}
+          >
             Add {friend.displayName}
           </button>
         ))}
         {children.map((child) => (
-          <button key={child.id} type="button" {...stylex.props(app.quiet)} onClick={async () => { await addShoppingPerson(child.recipientName, "CHILD", child.recipientId); await reload(); }}>
+          <button
+            key={child.id}
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              await addShoppingPerson(
+                child.recipientName,
+                "CHILD",
+                child.recipientId,
+              );
+              await reload();
+            }}
+          >
             Add {child.recipientName}
           </button>
         ))}
       </div>
-      {list.people.map((person) => (
-        <section key={person.id} {...stylex.props(app.card)}>
-          <h2>{person.name}</h2>
-          <form
-            {...stylex.props(app.row)}
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const form = new FormData(event.currentTarget);
-              await setStandingNote(person.id, String(form.get("note") || ""));
-              await reload();
-            }}
-          >
-            <input name="note" aria-label={`Note for ${person.name}`} defaultValue={person.standingNote || ""} placeholder="Size, color to avoid, where to ship" {...stylex.props(app.input)} />
-            <button type="submit" {...stylex.props(app.quiet)}>Save note</button>
-          </form>
-          <PersonGifts
-            personId={person.id}
-            listId={gifts[person.id]?.listId || ""}
-            gifts={gifts[person.id]?.gifts || []}
-            again={list.againClaimIds}
-            onChange={reload}
-          />
-          <PlannedGifts personId={person.id} gifts={list.plannedGifts.filter((gift) => gift.personId === person.id)} onChange={reload} />
-          <button type="button" {...stylex.props(app.quiet)} onClick={async () => { await removeShoppingPerson(person.id); await reload(); }}>
-            Remove {person.name}
-          </button>
-        </section>
-      ))}
+      {list.people.map((person) => {
+        const personGifts = gifts[person.id]?.gifts ?? [];
+        const personListId = gifts[person.id]?.listId ?? null;
+        const personPokes = gifts[person.id]?.myPokes ?? [];
+        const planned = list.plannedGifts.filter(
+          (gift) => gift.personId === person.id,
+        );
+        const bands = thinBands([
+          ...personGifts.map((g) => g.price),
+          ...planned.map((g) => g.price),
+        ]);
+        const wishlistBands = thinBands(personGifts.map((g) => g.price));
+        return (
+          <section key={person.id} {...stylex.props(app.card)}>
+            <h2>{person.name}</h2>
+            <form
+              {...stylex.props(app.row)}
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                await setStandingNote(person.id, String(form.get("note") || ""));
+                await reload();
+              }}
+            >
+              <input
+                name="note"
+                aria-label={`Note for ${person.name}`}
+                defaultValue={person.standingNote || ""}
+                placeholder="Size, color to avoid, where to ship"
+                {...stylex.props(app.input)}
+              />
+              <button type="submit" {...stylex.props(app.quiet)}>
+                Save note
+              </button>
+            </form>
+            <PersonGifts
+              personId={person.id}
+              listId={personListId || ""}
+              gifts={personGifts}
+              again={list.againClaimIds}
+              onChange={reload}
+            />
+            {person.kind === "FRIEND" && personListId && wishlistBands.length > 0 ? (
+              <ShopperPokeSection
+                listId={personListId}
+                recipientName={person.name}
+                bands={wishlistBands}
+                myPokes={personPokes}
+                onPoked={reload}
+              />
+            ) : null}
+            <PlannedGifts
+              personId={person.id}
+              gifts={planned}
+              onChange={reload}
+            />
+            {bands.length > 0 ? (
+              <ShoppingIdeas
+                personId={person.id}
+                bands={bands}
+                onAdded={reload}
+              />
+            ) : null}
+            <button
+              type="button"
+              {...stylex.props(app.quiet)}
+              onClick={async () => {
+                await removeShoppingPerson(person.id);
+                await reload();
+              }}
+            >
+              Remove {person.name}
+            </button>
+          </section>
+        );
+      })}
       <ConfirmDialog
         title="Delete this shopping list?"
         description="This removes the people and private planned gifts. It does not release wishlist claims."
         confirmLabel="Delete shopping list"
-        onConfirm={async () => { await deleteShoppingList(); await reload(); }}
+        onConfirm={async () => {
+          await deleteShoppingList();
+          await reload();
+        }}
       >
-        <button type="button" {...stylex.props(app.quiet)}>Delete shopping list</button>
+        <button type="button" {...stylex.props(app.quiet)}>
+          Delete shopping list
+        </button>
       </ConfirmDialog>
     </main>
   );
@@ -174,6 +321,8 @@ function PersonGifts({
   again: string[];
   onChange: () => Promise<void>;
 }) {
+  const [pending, setPending] = useState<ShopperGift | null>(null);
+  const [note, setNote] = useState("");
   return (
     <>
       {gifts.map((gift) =>
@@ -181,37 +330,104 @@ function PersonGifts({
           .filter((slot) => slot.status === "OPEN" || slot.mine)
           .map((slot) => (
             <div key={`${gift.id}-${slot.index}`} {...stylex.props(app.row)}>
-              <span>{gift.title || gift.url || "Gift"} · {slot.status === "OPEN" ? "Available" : slot.status}</span>
+              <span>
+                {giftTitle(gift)}
+                {gift.price != null ? ` · ${dollars(gift.price)}` : ""} ·{" "}
+                {slot.status === "OPEN"
+                  ? "Available"
+                  : slot.status === "PURCHASED"
+                    ? "Purchased"
+                    : "Reserved"}
+              </span>
               {slot.status === "OPEN" ? (
-                <button type="button" {...stylex.props(app.button)} onClick={async () => { await reserveGift(listId, gift.id); await onChange(); }}>
+                <button
+                  type="button"
+                  {...stylex.props(app.button)}
+                  onClick={async () => {
+                    const updated = await reserveGift(listId, gift.id);
+                    setPending(updated);
+                    await onChange();
+                  }}
+                >
                   {"I'll get this"}
                 </button>
               ) : null}
               {slot.mine && slot.status === "RESERVED" ? (
-                <button type="button" {...stylex.props(app.quiet)} onClick={async () => { await setPurchased(listId, gift.id, slot.index, true); await onChange(); }}>
-                  Mark purchased
+                <button
+                  type="button"
+                  {...stylex.props(app.button)}
+                  onClick={() => setPending(gift)}
+                >
+                  Did you buy it?
                 </button>
               ) : null}
-              {slot.mine && slot.status !== "OPEN" ? (
-                <button type="button" {...stylex.props(app.quiet)} onClick={async () => { await releaseGift(listId, gift.id, slot.index); await onChange(); }}>
-                  Release
-                </button>
-              ) : null}
-              {slot.mine && slot.claimId ? (
+              {slot.mine && slot.status === "PURCHASED" ? (
                 <button
                   type="button"
                   {...stylex.props(app.quiet)}
                   onClick={async () => {
-                    await setAgainNextYear(slot.claimId || "", personId, !again.includes(slot.claimId || ""));
+                    await setPurchased(listId, gift.id, slot.index, false);
                     await onChange();
                   }}
                 >
-                  {again.includes(slot.claimId) ? "Saved for next year" : "Again next year"}
+                  Undo purchased
+                </button>
+              ) : null}
+              {slot.mine && slot.status !== "OPEN" ? (
+                <button
+                  type="button"
+                  {...stylex.props(app.quiet)}
+                  onClick={async () => {
+                    await releaseGift(listId, gift.id, slot.index);
+                    await onChange();
+                  }}
+                >
+                  Release
+                </button>
+              ) : null}
+              {slot.mine && slot.status === "PURCHASED" && slot.claimId ? (
+                <button
+                  type="button"
+                  {...stylex.props(app.quiet)}
+                  onClick={async () => {
+                    await setAgainNextYear(
+                      slot.claimId || "",
+                      personId,
+                      !again.includes(slot.claimId || ""),
+                    );
+                    await onChange();
+                  }}
+                >
+                  {again.includes(slot.claimId)
+                    ? "Saved for next year"
+                    : "Again next year"}
                 </button>
               ) : null}
             </div>
           )),
       )}
+      {pending ? (
+        <BuyDialog
+          gift={pending}
+          note={note}
+          setNote={setNote}
+          onAnswer={async (bought) => {
+            const slot =
+              pending.slots.find(
+                (item) => item.mine && item.status === "RESERVED",
+              ) || pending.slots.find((item) => item.mine);
+            if (!slot) return;
+            await setPurchased(listId, pending.id, slot.index, bought, note);
+            setNote("");
+            setPending(null);
+            await onChange();
+          }}
+          onClose={async () => {
+            setPending(null);
+            await onChange();
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -225,47 +441,124 @@ function PlannedGifts({
   gifts: ShoppingList["plannedGifts"];
   onChange: () => Promise<void>;
 }) {
-  const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
-  const [notes, setNotes] = useState("");
-  const [price, setPrice] = useState("");
   return (
-    <div>
+    <div {...stylex.props(app.stack)}>
       {gifts.map((gift) => (
         <div key={gift.id} {...stylex.props(app.row)}>
-          <span>{gift.title || "Planned gift"} {gift.purchased ? "· purchased" : "· still to buy"} {gift.price != null ? dollars(gift.price) : ""}</span>
-          <button type="button" {...stylex.props(app.quiet)} onClick={async () => { await setPlannedPurchased(personId, gift.id, !gift.purchased); await onChange(); }}>
+          <span>
+            {giftTitle(gift)}{" "}
+            {gift.purchased ? "· purchased" : "· still to buy"}{" "}
+            {gift.price != null ? dollars(gift.price) : ""}
+            {gift.timingPhrase ? ` · ${timingCopy[gift.timingPhrase]}` : ""}
+            {gift.membershipPhrase
+              ? ` · ${membershipCopy[gift.membershipPhrase]}`
+              : ""}
+          </span>
+          {gift.url ? (
+            <a
+              href={gift.url}
+              target="_blank"
+              rel="noreferrer"
+              {...stylex.props(app.quiet)}
+            >
+              Buy
+            </a>
+          ) : null}
+          <button
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              await setPlannedPurchased(personId, gift.id, !gift.purchased);
+              await onChange();
+            }}
+          >
             {gift.purchased ? "Mark not yet" : "Mark purchased"}
           </button>
-          <button type="button" {...stylex.props(app.quiet)} onClick={async () => { await deletePlannedGift(personId, gift.id); await onChange(); }}>
+          <button
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              await deletePlannedGift(personId, gift.id);
+              await onChange();
+            }}
+          >
             Delete
           </button>
         </div>
       ))}
-      <form
-        {...stylex.props(app.row)}
-        onSubmit={async (event) => {
-          event.preventDefault();
-          await addPlannedGift(personId, {
-            kind: "CUSTOM",
-            title,
-            url,
-            notes,
-            price: price ? Math.round(Number(price) * 100) : null,
-          });
-          setTitle("");
-          setUrl("");
-          setNotes("");
-          setPrice("");
+      <GiftForm
+        submitLabel="Add planned gift"
+        allowQuantity={false}
+        initialKind="CUSTOM"
+        onAdd={async (input) => {
+          await addPlannedGift(personId, input);
           await onChange();
         }}
-      >
-        <input aria-label="Private planned gift" placeholder="A gift that is not on their list" value={title} onChange={(event) => setTitle(event.target.value)} {...stylex.props(app.input)} />
-        <input aria-label="Optional link" placeholder="Optional link" value={url} onChange={(event) => setUrl(event.target.value)} {...stylex.props(app.input)} />
-        <input aria-label="Notes" placeholder="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} {...stylex.props(app.input)} />
-        <input aria-label="Price" placeholder="Price" inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} {...stylex.props(app.input)} />
-        <button type="submit" {...stylex.props(app.quiet)}>Add planned gift</button>
-      </form>
+      />
+    </div>
+  );
+}
+
+function ShoppingIdeas({
+  personId,
+  bands,
+  onAdded,
+}: {
+  personId: string;
+  bands: PriceBand[];
+  onAdded: () => Promise<void>;
+}) {
+  const [ideas, setIdeas] = useState<GiftIdea[]>([]);
+  const [message, setMessage] = useState("");
+  const labels: Record<PriceBand, string> = {
+    UNDER_25: "under $25",
+    MID: "$25 to $75",
+    OVER_75: "over $75",
+  };
+  return (
+    <div {...stylex.props(app.stack)}>
+      <div {...stylex.props(app.row)}>
+        {bands.map((band) => (
+          <button
+            key={band}
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              const result = await askForShoppingIdeas(personId, band);
+              setIdeas(result.ideas);
+              setMessage(result.message || "");
+            }}
+          >
+            Ideas {labels[band]}
+          </button>
+        ))}
+      </div>
+      {message ? <p>{message}</p> : null}
+      {ideas.map((idea) => (
+        <div key={idea.title} {...stylex.props(app.stack)}>
+          <p>
+            {idea.title} · {dollars(idea.price)}
+          </p>
+          <p>{idea.reason}</p>
+          {idea.ratingLine ? <p>{idea.ratingLine}</p> : null}
+          <button
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              await addPlannedGift(personId, {
+                kind: idea.kind === "PRODUCT" ? "CUSTOM" : idea.kind,
+                title: idea.title,
+                price: idea.price,
+                timingPhrase: idea.timingPhrase,
+                membershipPhrase: idea.membershipPhrase,
+              });
+              await onAdded();
+            }}
+          >
+            Add this idea
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

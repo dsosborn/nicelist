@@ -7,6 +7,9 @@ dist
 .next
 out
 .turbo
+test-results
+playwright-report
+storybook-static
 
 # Environment
 .env

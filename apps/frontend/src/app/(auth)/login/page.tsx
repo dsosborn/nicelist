@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as stylex from "@stylexjs/stylex";
@@ -12,11 +12,24 @@ import { consumeReturnTo } from "@/lib/returnTo";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const redirected = useRef(false);
+
+  function goToReturnPath() {
+    if (redirected.current) return;
+    redirected.current = true;
+    window.location.assign(consumeReturnTo());
+  }
+
+  useEffect(() => {
+    if (!loading && user) {
+      goToReturnPath();
+    }
+  }, [user, loading]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +37,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await signIn(email, password);
-      router.replace(consumeReturnTo());
+      goToReturnPath();
     } catch (err) {
       if (err instanceof EmailNotConfirmedError) {
         router.replace(`/confirm?email=${encodeURIComponent(email)}`);
@@ -43,7 +56,7 @@ export default function LoginPage() {
       <h1 {...stylex.props(styles.title)}>Sign in</h1>
       <GoogleSignInButton />
       <form onSubmit={handleSubmit} {...stylex.props(styles.form)}>
-        {error && <p {...stylex.props(styles.error)}>{error}</p>}
+        {error && <p role="alert" {...stylex.props(styles.error)}>{error}</p>}
         <label {...stylex.props(styles.label)} htmlFor="email">
           Email
         </label>

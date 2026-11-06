@@ -8,12 +8,14 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  keepLabel = "Keep it",
   onConfirm,
   children,
 }: {
   title: string;
   description: string;
   confirmLabel: string;
+  keepLabel?: string;
   onConfirm: () => void;
   children: React.ReactNode;
 }) {
@@ -26,9 +28,15 @@ export function ConfirmDialog({
           <AlertDialog.Title>{title}</AlertDialog.Title>
           <AlertDialog.Description>{description}</AlertDialog.Description>
           <div {...stylex.props(app.row)}>
-            <AlertDialog.Cancel {...stylex.props(app.button)}>Keep it</AlertDialog.Cancel>
-            <AlertDialog.Action {...stylex.props(app.quiet)} onClick={onConfirm}>
-              {confirmLabel}
+            <AlertDialog.Cancel asChild>
+              <button type="button" autoFocus {...stylex.props(app.button)}>
+                {keepLabel}
+              </button>
+            </AlertDialog.Cancel>
+            <AlertDialog.Action asChild>
+              <button type="button" {...stylex.props(app.quiet)} onClick={onConfirm}>
+                {confirmLabel}
+              </button>
             </AlertDialog.Action>
           </div>
         </AlertDialog.Content>

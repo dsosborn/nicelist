@@ -1,21 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
 import * as stylex from "@stylexjs/stylex";
 import { AgentTools } from "@/components/AgentTools";
 import { AuthProvider } from "@/context/AuthContext";
 import { colors } from "@/styles/tokens.stylex";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 const styles = stylex.create({
   html: {
@@ -27,7 +16,7 @@ const styles = stylex.create({
   body: {
     color: colors.foreground,
     backgroundColor: colors.background,
-    fontFamily: "Arial, Helvetica, sans-serif",
+    fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif",
     WebkitFontSmoothing: "antialiased",
     MozOsxFontSmoothing: "grayscale",
   },
@@ -48,12 +37,7 @@ export default function RootLayout({
 
   return (
     <html lang="en" className={html.className} style={html.style}>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable}${
-          body.className ? ` ${body.className}` : ""
-        }`}
-        style={body.style}
-      >
+      <body className={body.className} style={body.style}>
         <AuthProvider>
           <Suspense fallback={null}>
             <AgentTools />

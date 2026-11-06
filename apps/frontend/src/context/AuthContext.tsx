@@ -22,6 +22,7 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
+import { fetchMe } from "@/lib/api";
 
 export type AuthUser = {
   userId: string;
@@ -68,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: currentUser.username,
       });
       setRedirectError(null);
+      void fetchMe().catch(() => {});
     } catch {
       setUser(null);
     } finally {
