@@ -1,5 +1,6 @@
 locals {
-  name_prefix = terraform.workspace == "default" ? var.project_name : "${var.project_name}-${terraform.workspace}"
+  is_prod     = terraform.workspace == "default"
+  name_prefix = local.is_prod ? var.project_name : "${var.project_name}-${terraform.workspace}"
 }
 
 resource "aws_dynamodb_table" "profiles" {
@@ -27,6 +28,10 @@ resource "aws_dynamodb_table" "profiles" {
   point_in_time_recovery {
     enabled = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "relationships" {
@@ -48,6 +53,10 @@ resource "aws_dynamodb_table" "relationships" {
 
   point_in_time_recovery {
     enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -104,6 +113,10 @@ resource "aws_dynamodb_table" "lists" {
   point_in_time_recovery {
     enabled = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "gifts" {
@@ -125,6 +138,10 @@ resource "aws_dynamodb_table" "gifts" {
 
   point_in_time_recovery {
     enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -148,6 +165,10 @@ resource "aws_dynamodb_table" "claims" {
   point_in_time_recovery {
     enabled = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "shopping" {
@@ -170,6 +191,10 @@ resource "aws_dynamodb_table" "shopping" {
   point_in_time_recovery {
     enabled = true
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_dynamodb_table" "ratings" {
@@ -191,5 +216,9 @@ resource "aws_dynamodb_table" "ratings" {
 
   point_in_time_recovery {
     enabled = true
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }

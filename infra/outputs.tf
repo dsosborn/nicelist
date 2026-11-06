@@ -30,12 +30,12 @@ output "appsync_api_id" {
 
 output "site_bucket" {
   description = "Private S3 bucket for the static export"
-  value       = aws_s3_bucket.site.bucket
+  value       = local.is_prod ? aws_s3_bucket.site[0].bucket : null
 }
 
 output "site_distribution_id" {
   description = "CloudFront distribution serving nicelist.co"
-  value       = aws_cloudfront_distribution.site.id
+  value       = local.is_prod ? aws_cloudfront_distribution.site[0].id : null
 }
 
 output "appsync_api_key" {
@@ -46,10 +46,10 @@ output "appsync_api_key" {
 
 output "tfstate_bucket" {
   description = "Encrypted versioned bucket for remote Terraform state"
-  value       = aws_s3_bucket.tfstate.bucket
+  value       = local.is_prod ? aws_s3_bucket.tfstate[0].bucket : null
 }
 
 output "tfstate_lock_table" {
   description = "DynamoDB lock table for remote Terraform state"
-  value       = aws_dynamodb_table.tfstate_lock.name
+  value       = local.is_prod ? aws_dynamodb_table.tfstate_lock[0].name : null
 }

@@ -20,7 +20,7 @@ terraform {
     }
   }
 
-  # Apply once with local state so the bucket and lock table exist, then migrate:
+  # Remote state: copy backend.hcl.example to backend.hcl and run
   # terraform init -migrate-state -backend-config=backend.hcl
-  # backend "s3" {}
+  backend "s3" {}
 }

@@ -42,6 +42,11 @@ resource "aws_iam_role_policy_attachment" "appsync_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs"
 }
 
+resource "aws_cloudwatch_log_group" "appsync" {
+  name              = "/aws/appsync/apis/${aws_appsync_graphql_api.main.id}"
+  retention_in_days = 7
+}
+
 resource "aws_appsync_datasource" "profiles" {
   api_id           = aws_appsync_graphql_api.main.id
   name             = "ProfilesTable"

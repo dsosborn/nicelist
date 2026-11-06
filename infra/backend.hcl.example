@@ -1,3 +1,6 @@
+# Copy to infra/backend.hcl, replace ACCOUNT_ID, then run:
+#   terraform -chdir=infra init -migrate-state -backend-config=backend.hcl
+# In CI, pass -backend-config="bucket=..." flags from repository variables.
 bucket         = "nicelist-tfstate-ACCOUNT_ID"
 key            = "nicelist/terraform.tfstate"
 region         = "us-east-1"

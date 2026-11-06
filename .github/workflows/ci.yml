@@ -41,7 +41,13 @@ jobs:
           aws-region: us-east-1
       - uses: hashicorp/setup-terraform@v3
       - run: node infra/scripts/bundle-resolvers.mjs
-      - run: terraform -chdir=infra init -input=false -backend=false
+      - run: |
+          terraform -chdir=infra init -input=false \
+            -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}" \
+            -backend-config="key=nicelist/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="dynamodb_table=${{ vars.TFSTATE_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
       - run: terraform -chdir=infra plan -input=false
         env:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}
@@ -70,7 +76,13 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - run: pnpm install --frozen-lockfile
       - run: node infra/scripts/bundle-resolvers.mjs
-      - run: terraform -chdir=infra init -input=false -backend=false
+      - run: |
+          terraform -chdir=infra init -input=false \
+            -backend-config="bucket=${{ vars.TFSTATE_BUCKET }}" \
+            -backend-config="key=nicelist/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="dynamodb_table=${{ vars.TFSTATE_LOCK_TABLE }}" \
+            -backend-config="encrypt=true"
       - run: terraform -chdir=infra apply -input=false -auto-approve
         env:
           TF_VAR_google_client_id: ${{ secrets.GOOGLE_CLIENT_ID }}

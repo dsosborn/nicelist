@@ -1,6 +1,7 @@
 # Cognito User Pool for custom auth (sign-in, sign-up, etc.)
 resource "aws_cognito_user_pool" "main" {
-  name = "${var.project_name}-user-pool"
+  name           = "${local.name_prefix}-user-pool"
+  user_pool_tier = "LITE"
 
   password_policy {
     minimum_length    = 8
@@ -14,6 +15,13 @@ resource "aws_cognito_user_pool" "main" {
   auto_verified_attributes = ["email"]
   deletion_protection      = "ACTIVE"
 
+  dynamic "username_configuration" {
+    for_each = local.is_prod ? [] : [1]
+    content {
+      case_sensitive = false
+    }
+  }
+
   schema {
     name                = "email"
     attribute_data_type = "String"
@@ -21,10 +29,20 @@ resource "aws_cognito_user_pool" "main" {
     mutable             = true
   }
 
-  email_configuration {
-    email_sending_account = "DEVELOPER"
-    source_arn            = aws_ses_domain_identity.site.arn
-    from_email_address    = "Nicelist <noreply@${var.domain_name}>"
+  dynamic "email_configuration" {
+    for_each = local.is_prod ? [1] : []
+    content {
+      email_sending_account = "DEVELOPER"
+      source_arn            = aws_ses_domain_identity.site[0].arn
+      from_email_address    = "Nicelist <noreply@${var.domain_name}>"
+    }
+  }
+
+  dynamic "email_configuration" {
+    for_each = local.is_prod ? [] : [1]
+    content {
+      email_sending_account = "COGNITO_DEFAULT"
+    }
   }
 
   verification_message_template {
@@ -32,11 +50,15 @@ resource "aws_cognito_user_pool" "main" {
     email_subject        = "Your Nicelist verification code"
     email_message        = "Your Nicelist verification code is {####}"
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # App client for frontend (custom form - no secret)
 resource "aws_cognito_user_pool_client" "web" {
-  name         = "${var.project_name}-web-client"
+  name         = "${local.name_prefix}-web-client"
   user_pool_id = aws_cognito_user_pool.main.id
 
   generate_secret = false
@@ -45,6 +67,9 @@ resource "aws_cognito_user_pool_client" "web" {
     "ALLOW_REFRESH_TOKEN_AUTH",
     "ALLOW_USER_SRP_AUTH",
   ]
+
+  read_attributes  = ["email", "email_verified", "name"]
+  write_attributes = ["email", "name"]
 
   refresh_token_validity = 30
   access_token_validity  = 60
@@ -67,7 +92,7 @@ resource "aws_cognito_user_pool_client" "web" {
 }
 
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "${var.project_name}-${data.aws_caller_identity.current.account_id}"
+  domain       = "${local.name_prefix}-${data.aws_caller_identity.current.account_id}"
   user_pool_id = aws_cognito_user_pool.main.id
 }
 
