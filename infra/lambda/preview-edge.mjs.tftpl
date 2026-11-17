@@ -1,0 +1,72 @@
+import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { isPreviewBot, previewForList, tokenFromQuery } from "./preview-html.mjs";
+
+const LISTS_TABLE = "${lists_table}";
+const GIFTS_TABLE = "${gifts_table}";
+const IMAGE_BASE = "${image_base}";
+const dynamo = new DynamoDBClient({ region: "us-east-1" });
+
+function attr(item, key) {
+  const value = item && item[key];
+  if (!value) return "";
+  if (value.S) return value.S;
+  if (value.N) return value.N;
+  return "";
+}
+
+function htmlResponse(body) {
+  return {
+    status: "200",
+    statusDescription: "OK",
+    headers: {
+      "content-type": [{ key: "Content-Type", value: "text/html; charset=utf-8" }],
+      "cache-control": [{ key: "Cache-Control", value: "public, max-age=300" }],
+    },
+    body,
+  };
+}
+
+export const handler = async (event) => {
+  const request = event.Records[0].cf.request;
+  const uaHeader = request.headers["user-agent"];
+  const ua = uaHeader && uaHeader[0] ? uaHeader[0].value : "";
+  const uri = request.uri || "";
+  if (!isPreviewBot(ua) || uri.indexOf("list") === -1) return request;
+  const token = tokenFromQuery(request.querystring || "");
+  if (!token) return request;
+  try {
+    const lists = await dynamo.send(
+      new QueryCommand({
+        TableName: LISTS_TABLE,
+        IndexName: "shareToken-index",
+        KeyConditionExpression: "shareToken = :token",
+        ExpressionAttributeValues: { ":token": { S: token } },
+      }),
+    );
+    const listItem = (lists.Items || [])[0];
+    if (!listItem || attr(listItem, "visibility") !== "PUBLIC") {
+      return htmlResponse(previewForList(null, []));
+    }
+    const gifts = await dynamo.send(
+      new QueryCommand({
+        TableName: GIFTS_TABLE,
+        KeyConditionExpression: "listId = :id",
+        ExpressionAttributeValues: { ":id": { S: attr(listItem, "id") } },
+        Limit: 8,
+      }),
+    );
+    const rows = (gifts.Items || []).map((item) => ({
+      title: attr(item, "title"),
+      imageUrl: attr(item, "imageUrl"),
+    }));
+    return htmlResponse(
+      previewForList(
+        { name: attr(listItem, "name"), visibility: "PUBLIC" },
+        rows,
+        IMAGE_BASE,
+      ),
+    );
+  } catch {
+    return request;
+  }
+};

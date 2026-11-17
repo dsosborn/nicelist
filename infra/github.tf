@@ -53,6 +53,8 @@ resource "aws_iam_role_policy" "github_deploy" {
           "${aws_s3_bucket.site[0].arn}/*",
           aws_s3_bucket.tfstate[0].arn,
           "${aws_s3_bucket.tfstate[0].arn}/*",
+          aws_s3_bucket.images.arn,
+          "${aws_s3_bucket.images.arn}/*",
         ]
       },
       {

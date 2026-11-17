@@ -3,6 +3,8 @@ import { util, runtime } from "@aws-appsync/utils";
 export function request(ctx) {
   if (ctx.stash.notFound || !ctx.stash.list) runtime.earlyReturn(null);
   if (ctx.stash.list.revealedAt) util.error("This list is revealed.");
+  const locked = seasonLockError(ctx.stash.list);
+  if (locked) util.error(locked);
   const current = findGift(ctx.stash.gifts, ctx.args.id);
   if (!current) util.error("This gift wasn't found.");
   const parsed = validateGiftInput({
@@ -11,6 +13,8 @@ export function request(ctx) {
     url: ctx.args.url === undefined || ctx.args.url === null ? current.url : ctx.args.url,
     notes: ctx.args.notes === undefined || ctx.args.notes === null ? current.notes : ctx.args.notes,
     price: ctx.args.price === undefined ? current.price : ctx.args.price,
+    imageUrl: ctx.args.imageUrl === undefined || ctx.args.imageUrl === null ? current.imageUrl : ctx.args.imageUrl,
+    goalCents: ctx.args.goalCents === undefined ? current.goalCents : ctx.args.goalCents,
     quantity: ctx.args.quantity === undefined || ctx.args.quantity === null ? current.quantity : ctx.args.quantity,
     timingPhrase: ctx.args.timingPhrase || current.timingPhrase,
     membershipPhrase: ctx.args.membershipPhrase || current.membershipPhrase,
@@ -31,6 +35,14 @@ export function request(ctx) {
   if (parsed.value.price !== null && parsed.value.price !== undefined) {
     expression += ", price = :price";
     values[":price"] = parsed.value.price;
+  }
+  if (parsed.value.imageUrl) {
+    expression += ", imageUrl = :imageUrl";
+    values[":imageUrl"] = parsed.value.imageUrl;
+  }
+  if (parsed.value.goalCents) {
+    expression += ", goalCents = :goalCents";
+    values[":goalCents"] = parsed.value.goalCents;
   }
   if (parsed.value.timingPhrase) {
     expression += ", timingPhrase = :timingPhrase";
@@ -59,6 +71,9 @@ export function response(ctx) {
   gift.url = value.url;
   gift.notes = value.notes;
   gift.price = value.price;
+  gift.imageUrl = value.imageUrl;
+  gift.goalCents = value.goalCents;
+  gift.listId = ctx.stash.list.id;
   gift.quantity = value.quantity;
   gift.timingPhrase = value.timingPhrase;
   gift.membershipPhrase = value.membershipPhrase;

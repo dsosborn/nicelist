@@ -26,6 +26,9 @@ export function response(ctx) {
   if ((ctx.info.fieldName === "deleteList" || ctx.info.fieldName === "removeChild") && items.length > LIMITS.deleteGifts) {
     util.error("This list has more than " + LIMITS.deleteGifts + " gifts. Delete some gifts first.");
   }
-  ctx.stash.gifts = items;
-  return items;
+  ctx.stash.gifts = items.map((item) => {
+    if (!item.listId && ctx.stash.listId) item.listId = ctx.stash.listId;
+    return item;
+  });
+  return ctx.stash.gifts;
 }

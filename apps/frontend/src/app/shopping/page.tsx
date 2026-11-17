@@ -29,6 +29,7 @@ import {
   setPlannedPurchased,
   setPurchased,
   setStandingNote,
+  startNextSeason,
   thinBands,
   timingCopy,
   type FriendsView,
@@ -158,6 +159,49 @@ function ShoppingBody() {
         </button>
       </form>
       <p>Total {dollars(totalCents)}</p>
+      {list.lastYearTotalCents ? (
+        <p>Last year {dollars(list.lastYearTotalCents)}</p>
+      ) : null}
+      <button
+        type="button"
+        {...stylex.props(app.button)}
+        onClick={async () => {
+          const next = await startNextSeason();
+          setList(next);
+          setName(next.name);
+          setGifts(await loadPeopleGifts(next.people));
+        }}
+      >
+        Start next season
+      </button>
+      {list.history.length ? (
+        <section>
+          <h2>Last year</h2>
+          <ul>
+            {list.history.map((item) => (
+              <li key={item.id}>
+                <span>{item.title}</span>
+                {item.price != null ? <span> {dollars(item.price)}</span> : null}
+                {item.againNextYear ? <span> Again</span> : null}
+                <button
+                  type="button"
+                  {...stylex.props(app.quiet)}
+                  onClick={async () => {
+                    await addPlannedGift(item.personId, {
+                      kind: "CUSTOM",
+                      title: item.title ?? undefined,
+                      price: item.price,
+                    });
+                    await reload();
+                  }}
+                >
+                  Copy into this year
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <form
         {...stylex.props(app.row)}
         onSubmit={async (event) => {
@@ -394,6 +438,8 @@ function PersonGifts({
                       slot.claimId || "",
                       personId,
                       !again.includes(slot.claimId || ""),
+                      gift.title ?? undefined,
+                      gift.price,
                     );
                     await onChange();
                   }}
@@ -417,7 +463,7 @@ function PersonGifts({
                 (item) => item.mine && item.status === "RESERVED",
               ) || pending.slots.find((item) => item.mine);
             if (!slot) return;
-            await setPurchased(listId, pending.id, slot.index, bought, note);
+            await setPurchased(listId, pending.id, slot.index, bought, note, personId);
             setNote("");
             setPending(null);
             await onChange();

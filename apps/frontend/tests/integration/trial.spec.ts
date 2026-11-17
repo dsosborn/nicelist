@@ -120,11 +120,11 @@ test("trial journey: sign up, write a list, guest and friend shopping, poke, sho
     .click();
 
   await expect(page.getByText("1 of 1 were purchased")).toBeVisible();
-  await expect(page.locator("body")).not.toContainText("Bought by Sam");
+  await expect(page.locator("body")).not.toContainText("Purchased by Sam");
   await page
     .getByRole("button", { name: "See which gifts were purchased" })
     .click();
-  await expect(page.getByText("Purchased", { exact: true })).toBeVisible();
+  await expect(page.getByText("Purchased by Sam")).toBeVisible();
   await expect(page.getByText("Blackhawks tickets")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("Bought by Sam");
 
@@ -185,6 +185,7 @@ test("friends-only link redirects signed-out visitor to sign-in, child-safe view
   await page.getByLabel("Password").fill("Winter2026");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(new RegExp(`/list\\?t=${adaList.shareToken}`));
+  await expect(page.getByText("still open")).toBeVisible();
 
   const toolsWhileShopping = await page.evaluate(() =>
     (window as Window & { __mcpNames?: () => string[] }).__mcpNames?.() ?? [],

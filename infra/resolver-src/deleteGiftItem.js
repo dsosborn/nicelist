@@ -2,6 +2,8 @@ import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
   if (ctx.stash.notFound || !ctx.stash.list) runtime.earlyReturn(null);
+  const locked = seasonLockError(ctx.stash.list);
+  if (locked) util.error(locked);
   const current = findGift(ctx.stash.gifts, ctx.args.id);
   if (!current) util.error("This gift wasn't found.");
   ctx.stash.currentGift = current;

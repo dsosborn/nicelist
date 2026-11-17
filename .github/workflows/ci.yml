@@ -11,14 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node --test infra/domain/rules.test.mjs
+      - run: node --test infra/domain/rules.test.mjs infra/lambda/smash.test.mjs
       - run: node infra/scripts/bundle-resolvers.mjs
       - run: node infra/scripts/generate-types.mjs --check
       - run: pnpm --filter @nicelist/frontend exec tsc --noEmit
@@ -111,8 +109,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 22

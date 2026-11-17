@@ -17,6 +17,8 @@ export function request(ctx) {
     shareToken: util.autoId(),
     createdAt: now,
     managerIds: [ctx.stash.userId],
+    year: activeYearOf(ctx.stash.profile),
+    readOnly: false,
   };
   ctx.stash.created = item;
   return {
@@ -32,6 +34,8 @@ export function request(ctx) {
       shareToken: item.shareToken,
       createdAt: item.createdAt,
       managerIds: item.managerIds,
+      year: item.year,
+      readOnly: false,
     }),
   };
 }

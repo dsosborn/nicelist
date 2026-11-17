@@ -194,6 +194,8 @@ resource "aws_iam_role_policy" "appsync_dynamodb" {
         "${aws_dynamodb_table.ratings.arn}/index/*",
         aws_dynamodb_table.pokes.arn,
         "${aws_dynamodb_table.pokes.arn}/index/*",
+        aws_dynamodb_table.contributions.arn,
+        aws_dynamodb_table.mail.arn,
       ]
     }]
   })
@@ -238,6 +240,11 @@ locals {
     ratings       = aws_appsync_datasource.ratings.name
     pokes         = aws_appsync_datasource.pokes.name
     ideas         = aws_appsync_datasource.ideas.name
+    contributions = aws_appsync_datasource.contributions.name
+    mail          = aws_appsync_datasource.mail.name
+    notify        = aws_appsync_datasource.notify.name
+    preview       = aws_appsync_datasource.preview.name
+    payments      = aws_appsync_datasource.payments.name
   }
 }
 

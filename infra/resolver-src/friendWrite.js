@@ -143,5 +143,12 @@ export function request(ctx) {
 
 export function response(ctx) {
   if (ctx.error) util.error(ctx.error.message, ctx.error.type);
+  if (ctx.info.fieldName === "sendFriendRequest" && ctx.stash.target) {
+    ctx.stash.mail = {
+      action: "friend",
+      toEmail: ctx.stash.target.email || ctx.stash.targetEmail,
+      fromName: profileName(ctx),
+    };
+  }
   return { ok: true };
 }

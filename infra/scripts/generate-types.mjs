@@ -8,6 +8,7 @@ const outPath = path.join(root, "apps/frontend/src/graphql/generated.ts");
 
 const cleaned = fs
   .readFileSync(schemaPath, "utf8")
+  .replace(/@aws_subscribe\([^)]*\)/g, "")
   .replace(/@aws_cognito_user_pools/g, "")
   .replace(/@aws_api_key/g, "");
 
@@ -52,7 +53,7 @@ out.push("");
 const typeRe = /type\s+(\w+)\s*\{([^}]*)\}/g;
 while ((match = typeRe.exec(cleaned)) !== null) {
   const name = match[1];
-  if (name === "Query" || name === "Mutation") continue;
+  if (name === "Query" || name === "Mutation" || name === "Subscription") continue;
   const body = match[2];
   out.push(`export type ${name} = {`);
   for (const rawLine of body.split("\n")) {

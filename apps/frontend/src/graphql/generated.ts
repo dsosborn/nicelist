@@ -25,14 +25,25 @@ export type Poke = {
 export type OwnerSlot = {
   index: number;
   status: ClaimStatus;
+  shopperName: string | null;
+};
+
+export type Contributor = {
+  id: string;
+  displayName: string;
+  amountCents: number;
+  mine: boolean;
 };
 
 export type OwnerGift = {
   id: string;
+  listId: string | null;
   kind: GiftKind;
   title: string | null;
   url: string | null;
+  imageUrl: string | null;
   price: number | null;
+  goalCents: number | null;
   notes: string | null;
   quantity: number;
   timingPhrase: TimingPhrase | null;
@@ -41,6 +52,9 @@ export type OwnerGift = {
   slots: OwnerSlot[] | null;
   shopperSlots: ShopperSlot[] | null;
   openCount: number | null;
+  contributedCents: number | null;
+  netCents: number | null;
+  contributors: Contributor[] | null;
 };
 
 export type OwnerListSummary = {
@@ -52,6 +66,8 @@ export type OwnerListSummary = {
   recipientId: string;
   recipientName: string;
   isChild: boolean;
+  year: number;
+  readOnly: boolean;
 };
 
 export type OwnerList = {
@@ -63,6 +79,8 @@ export type OwnerList = {
   recipientId: string;
   recipientName: string;
   isChild: boolean;
+  year: number;
+  readOnly: boolean;
   managing: boolean;
   gifts: OwnerGift[];
   pokes: Poke[];
@@ -80,10 +98,13 @@ export type ShopperSlot = {
 
 export type ShopperGift = {
   id: string;
+  listId: string | null;
   kind: GiftKind;
   title: string | null;
   url: string | null;
+  imageUrl: string | null;
   price: number | null;
+  goalCents: number | null;
   notes: string | null;
   quantity: number;
   timingPhrase: TimingPhrase | null;
@@ -91,6 +112,9 @@ export type ShopperGift = {
   createdAt: string | null;
   slots: ShopperSlot[];
   openCount: number;
+  contributedCents: number | null;
+  netCents: number | null;
+  contributors: Contributor[] | null;
 };
 
 export type ShopperList = {
@@ -111,7 +135,9 @@ export type GuestGift = {
   kind: GiftKind;
   title: string | null;
   url: string | null;
+  imageUrl: string | null;
   price: number | null;
+  goalCents: number | null;
   notes: string | null;
   quantity: number;
   timingPhrase: TimingPhrase | null;
@@ -120,6 +146,7 @@ export type GuestGift = {
   openCount: number;
   reservedCount: number;
   purchasedCount: number;
+  contributedCents: number | null;
 };
 
 export type GuestList = {
@@ -154,6 +181,7 @@ export type PlannedGift = {
   kind: GiftKind;
   title: string | null;
   url: string | null;
+  imageUrl: string | null;
   price: number | null;
   notes: string | null;
   timingPhrase: TimingPhrase | null;
@@ -162,12 +190,34 @@ export type PlannedGift = {
   againNextYear: boolean;
 };
 
+export type SeasonGift = {
+  id: string;
+  personId: string;
+  title: string | null;
+  price: number | null;
+  againNextYear: boolean;
+};
+
 export type ShoppingList = {
   name: string;
+  year: number;
   people: ShoppingPerson[];
   plannedGifts: PlannedGift[];
   againClaimIds: string[];
   totalCents: number;
+  lastYearTotalCents: number;
+  history: SeasonGift[];
+};
+
+export type ProductPreview = {
+  title: string | null;
+  price: number | null;
+  imageUrl: string | null;
+  variantNote: string | null;
+};
+
+export type CheckoutLink = {
+  url: string;
 };
 
 export type ShoppingPersonGifts = {

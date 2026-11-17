@@ -1,6 +1,7 @@
 schema {
   query: Query
   mutation: Mutation
+  subscription: Subscription
 }
 
 enum Visibility {
@@ -68,14 +69,25 @@ type Poke @aws_cognito_user_pools {
 type OwnerSlot @aws_cognito_user_pools {
   index: Int!
   status: ClaimStatus!
+  shopperName: String
+}
+
+type Contributor @aws_cognito_user_pools {
+  id: ID!
+  displayName: String!
+  amountCents: Int!
+  mine: Boolean!
 }
 
 type OwnerGift @aws_cognito_user_pools {
   id: ID!
+  listId: ID
   kind: GiftKind!
   title: String
   url: String
+  imageUrl: String
   price: Int
+  goalCents: Int
   notes: String
   quantity: Int!
   timingPhrase: TimingPhrase
@@ -84,6 +96,9 @@ type OwnerGift @aws_cognito_user_pools {
   slots: [OwnerSlot!]
   shopperSlots: [ShopperSlot!]
   openCount: Int
+  contributedCents: Int
+  netCents: Int
+  contributors: [Contributor!]
 }
 
 type OwnerListSummary @aws_cognito_user_pools {
@@ -95,6 +110,8 @@ type OwnerListSummary @aws_cognito_user_pools {
   recipientId: ID!
   recipientName: String!
   isChild: Boolean!
+  year: Int!
+  readOnly: Boolean!
 }
 
 type OwnerList @aws_cognito_user_pools {
@@ -106,6 +123,8 @@ type OwnerList @aws_cognito_user_pools {
   recipientId: ID!
   recipientName: String!
   isChild: Boolean!
+  year: Int!
+  readOnly: Boolean!
   managing: Boolean!
   gifts: [OwnerGift!]!
   pokes: [Poke!]!
@@ -123,10 +142,13 @@ type ShopperSlot @aws_cognito_user_pools {
 
 type ShopperGift @aws_cognito_user_pools {
   id: ID!
+  listId: ID
   kind: GiftKind!
   title: String
   url: String
+  imageUrl: String
   price: Int
+  goalCents: Int
   notes: String
   quantity: Int!
   timingPhrase: TimingPhrase
@@ -134,6 +156,9 @@ type ShopperGift @aws_cognito_user_pools {
   createdAt: String
   slots: [ShopperSlot!]!
   openCount: Int!
+  contributedCents: Int
+  netCents: Int
+  contributors: [Contributor!]
 }
 
 type ShopperList @aws_cognito_user_pools {
@@ -154,7 +179,9 @@ type GuestGift @aws_api_key {
   kind: GiftKind!
   title: String
   url: String
+  imageUrl: String
   price: Int
+  goalCents: Int
   notes: String
   quantity: Int!
   timingPhrase: TimingPhrase
@@ -163,6 +190,7 @@ type GuestGift @aws_api_key {
   openCount: Int!
   reservedCount: Int!
   purchasedCount: Int!
+  contributedCents: Int
 }
 
 type GuestList @aws_api_key {
@@ -197,6 +225,7 @@ type PlannedGift @aws_cognito_user_pools {
   kind: GiftKind!
   title: String
   url: String
+  imageUrl: String
   price: Int
   notes: String
   timingPhrase: TimingPhrase
@@ -205,12 +234,34 @@ type PlannedGift @aws_cognito_user_pools {
   againNextYear: Boolean!
 }
 
+type SeasonGift @aws_cognito_user_pools {
+  id: ID!
+  personId: ID!
+  title: String
+  price: Int
+  againNextYear: Boolean!
+}
+
 type ShoppingList @aws_cognito_user_pools {
   name: String!
+  year: Int!
   people: [ShoppingPerson!]!
   plannedGifts: [PlannedGift!]!
   againClaimIds: [ID!]!
   totalCents: Int!
+  lastYearTotalCents: Int!
+  history: [SeasonGift!]!
+}
+
+type ProductPreview @aws_cognito_user_pools {
+  title: String
+  price: Int
+  imageUrl: String
+  variantNote: String
+}
+
+type CheckoutLink @aws_cognito_user_pools {
+  url: String!
 }
 
 type ShoppingPersonGifts @aws_cognito_user_pools {
@@ -256,6 +307,15 @@ type Query {
   receivedGifts: [ReceivedGift!]! @aws_cognito_user_pools
 }
 
+type Subscription {
+  onShopperGift(listId: ID!): ShopperGift
+    @aws_subscribe(mutations: ["reserveGift", "setPurchased", "releaseGift"])
+    @aws_cognito_user_pools
+  onOwnerGift(listId: ID!): OwnerGift
+    @aws_subscribe(mutations: ["addGift", "updateGift", "deleteGift"])
+    @aws_cognito_user_pools
+}
+
 type Mutation {
   updateProfile(displayName: String!): Profile! @aws_cognito_user_pools
   createList(name: String!): OwnerListSummary! @aws_cognito_user_pools
@@ -273,7 +333,9 @@ type Mutation {
     kind: GiftKind!
     title: String
     url: String
+    imageUrl: String
     price: Int
+    goalCents: Int
     notes: String
     quantity: Int
     timingPhrase: TimingPhrase
@@ -284,15 +346,24 @@ type Mutation {
     id: ID!
     title: String
     url: String
+    imageUrl: String
     price: Int
+    goalCents: Int
     notes: String
     quantity: Int
     timingPhrase: TimingPhrase
     membershipPhrase: MembershipPhrase
   ): OwnerGift! @aws_cognito_user_pools
+  setGiftGoal(listId: ID!, id: ID!, goalCents: Int): OwnerGift! @aws_cognito_user_pools
+  previewProduct(url: String!): ProductPreview! @aws_cognito_user_pools
+  startContribution(listId: ID!, giftId: ID!, amountCents: Int!): CheckoutLink! @aws_cognito_user_pools
+  refundContribution(listId: ID!, contributionId: ID!): Boolean! @aws_cognito_user_pools
+  startPayoutOnboarding: CheckoutLink! @aws_cognito_user_pools
+  receiveBalance(listId: ID!): Boolean! @aws_cognito_user_pools
+  startNextSeason: ShoppingList! @aws_cognito_user_pools
   deleteGift(listId: ID!, id: ID!): OwnerGift! @aws_cognito_user_pools
   reserveGift(listId: ID!, giftId: ID!, note: String): ShopperGift! @aws_cognito_user_pools
-  setPurchased(listId: ID!, giftId: ID!, slot: Int!, purchased: Boolean!, note: String): ShopperGift! @aws_cognito_user_pools
+  setPurchased(listId: ID!, giftId: ID!, slot: Int!, purchased: Boolean!, note: String, personId: ID): ShopperGift! @aws_cognito_user_pools
   releaseGift(listId: ID!, giftId: ID!, slot: Int!): ShopperGift! @aws_cognito_user_pools
   pokeList(listId: ID!, band: PriceBand!): Poke! @aws_cognito_user_pools
   dismissPoke(listId: ID!, id: ID!): Boolean! @aws_cognito_user_pools
@@ -310,6 +381,7 @@ type Mutation {
     kind: GiftKind!
     title: String
     url: String
+    imageUrl: String
     price: Int
     notes: String
     timingPhrase: TimingPhrase
@@ -320,6 +392,7 @@ type Mutation {
     id: ID!
     title: String
     url: String
+    imageUrl: String
     price: Int
     notes: String
     timingPhrase: TimingPhrase
@@ -327,7 +400,7 @@ type Mutation {
   ): PlannedGift! @aws_cognito_user_pools
   deletePlannedGift(personId: ID!, id: ID!): PlannedGift! @aws_cognito_user_pools
   setPlannedPurchased(personId: ID!, id: ID!, purchased: Boolean!): PlannedGift! @aws_cognito_user_pools
-  setAgainNextYear(claimId: ID!, personId: ID!, again: Boolean!): Boolean! @aws_cognito_user_pools
+  setAgainNextYear(claimId: ID!, personId: ID!, again: Boolean!, title: String, price: Int): Boolean! @aws_cognito_user_pools
   deleteShoppingList: Boolean! @aws_cognito_user_pools
   askForIdeas(listId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools
   askForShoppingIdeas(personId: ID!, band: PriceBand!): IdeaResult! @aws_cognito_user_pools

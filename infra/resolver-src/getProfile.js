@@ -9,5 +9,6 @@ export function request(ctx) {
 
 export function response(ctx) {
   ctx.stash.profile = ctx.result || null;
+  ctx.stash.activeYear = activeYearOf(ctx.result);
   return ctx.result;
 }

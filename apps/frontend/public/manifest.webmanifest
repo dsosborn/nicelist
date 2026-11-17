@@ -1,0 +1,15 @@
+{
+  "name": "Nicelist",
+  "short_name": "Nicelist",
+  "start_url": "/",
+  "display": "standalone",
+  "share_target": {
+    "action": "/add",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

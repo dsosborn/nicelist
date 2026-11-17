@@ -9,6 +9,7 @@ import type {
   GiftInput,
   GiftKind,
   MembershipPhrase,
+  ProductPreview,
   TimingPhrase,
 } from "@/lib/api";
 
@@ -24,17 +25,23 @@ export function GiftForm({
   submitLabel = "Add gift",
   allowQuantity = true,
   initialKind = "PRODUCT",
+  onPreview,
+  initialUrl = "",
 }: {
   onAdd: (input: GiftInput) => Promise<void>;
   submitLabel?: string;
   allowQuantity?: boolean;
   initialKind?: GiftKind;
+  onPreview?: (url: string) => Promise<ProductPreview>;
+  initialUrl?: string;
 }) {
   const [kind, setKind] = useState<GiftKind>(initialKind);
   const [title, setTitle] = useState("");
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [price, setPrice] = useState("");
+  const [goal, setGoal] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [showQuantity, setShowQuantity] = useState(false);
   const [timing, setTiming] = useState<TimingPhrase>("ANYTIME");
@@ -68,16 +75,20 @@ export function GiftForm({
             kind,
             title: trimmedTitle,
             url: trimmedUrl,
+            imageUrl,
             notes: notes.trim(),
             quantity: allowQuantity ? quantity : 1,
             price: price ? Math.round(Number(price) * 100) : null,
+            goalCents: kind === "CUSTOM" && goal ? Math.round(Number(goal) * 100) : null,
             timingPhrase: kind === "EXPERIENCE" ? timing : null,
             membershipPhrase: kind === "MEMBERSHIP" ? membership : null,
           });
           setTitle("");
           setUrl("");
+          setImageUrl(null);
           setNotes("");
           setPrice("");
+          setGoal("");
           setQuantity(1);
           setShowQuantity(false);
         } catch (err) {
@@ -108,6 +119,22 @@ export function GiftForm({
           placeholder="Paste a product link"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
+          onBlur={() => {
+            const next = url.trim();
+            if (!onPreview || !/^https?:\/\//i.test(next)) return;
+            void onPreview(next)
+              .then((preview) => {
+                if (preview.title) setTitle((current) => current || preview.title || "");
+                if (preview.price) {
+                  setPrice((current) => current || (preview.price! / 100).toFixed(2));
+                }
+                if (preview.variantNote) {
+                  setNotes((current) => current || preview.variantNote || "");
+                }
+                if (preview.imageUrl) setImageUrl(preview.imageUrl);
+              })
+              .catch(() => {});
+          }}
           {...stylex.props(app.input)}
         />
       ) : (
@@ -120,6 +147,21 @@ export function GiftForm({
           {...stylex.props(app.input)}
         />
       )}
+      {kind === "CUSTOM" ? (
+        <input
+          aria-label="Goal amount"
+          placeholder="Goal amount, optional"
+          inputMode="decimal"
+          value={goal}
+          onChange={(event) => setGoal(event.target.value)}
+          {...stylex.props(app.input)}
+        />
+      ) : null}
+      {imageUrl ? (
+        // Gift images are already on CloudFront. The static export does not optimize them.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" style={{ width: "100%", maxHeight: 180, objectFit: "cover" }} />
+      ) : null}
       {kind === "EXPERIENCE" ? (
         <TimingRadio value={timing} onChange={setTiming} />
       ) : null}
