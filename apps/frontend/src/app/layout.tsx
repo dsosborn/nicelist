@@ -26,6 +26,7 @@ const styles = stylex.create({
 export const metadata: Metadata = {
   title: "Nicelist",
   description: "Nicelist 2026",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

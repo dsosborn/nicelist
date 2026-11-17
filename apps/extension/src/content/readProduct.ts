@@ -3,6 +3,7 @@ export type ProductPageFields = {
   url: string;
   priceCents: number | null;
   variantNote: string;
+  imageUrl: string | null;
 };
 
 const VARIANT_KEYS = /(size|color|colour|style|fit|length|width|option|variant)/i;
@@ -21,7 +22,21 @@ function parsePriceToCents(raw: unknown): number | null {
   return Math.round(num * 100);
 }
 
-function readJsonLd(doc: Document): { title?: string; priceCents?: number | null } {
+function firstImage(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return cleanText(value);
+  if (Array.isArray(value)) return firstImage(value[0]);
+  if (typeof value === "object" && value && "url" in value) {
+    return cleanText(String((value as { url?: unknown }).url || ""));
+  }
+  return "";
+}
+
+function readJsonLd(doc: Document): {
+  title?: string;
+  priceCents?: number | null;
+  imageUrl?: string;
+} {
   const scripts = Array.from(
     doc.querySelectorAll('script[type="application/ld+json"]'),
   );
@@ -44,6 +59,7 @@ function readJsonLd(doc: Document): { title?: string; priceCents?: number | null
           return {
             title: cleanText(node.name),
             priceCents: parsePriceToCents(rawPrice),
+            imageUrl: firstImage(node.image),
           };
         }
       }
@@ -172,11 +188,15 @@ export function readProductFromDocument(
       doc.querySelector("h1")?.textContent,
   );
   const title = ld.title || h1 || ogTitle || cleanText(doc.title);
+  const ogImage = cleanText(
+    doc.querySelector('meta[property="og:image"]')?.getAttribute("content"),
+  );
   return {
     title: title.slice(0, 200),
     // Never substitute the canonical or parent-product URL; keep exact query and hash.
     url: locationHref,
     priceCents: readPrice(doc, ld.priceCents),
     variantNote: readVariantNote(doc),
+    imageUrl: ld.imageUrl || ogImage || null,
   };
 }

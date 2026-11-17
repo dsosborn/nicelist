@@ -348,40 +348,36 @@ The extension is how someone adds the product they are already looking at when N
 ### Trial boundaries
 
 - The list page has no ads and no sponsored products. The only commercial notice is the partner-link disclosure.
-- Mail is limited to verification codes and password resets. Nicelist does not send newsletters or promotional email.
+- Mail covers verification, password resets, a friend request, a poke to the managing adults, a daily still-open count, and a note to friends when a gift they can see is reserved or purchased. That note names the gift and says taken or purchased. It does not name the buyer, and it is not sent to the person the list is for. Nicelist does not send newsletters or promotional email.
 - A public list’s first screen shows the gifts. It does not wait on a product-page fetch or a group the visitor has to join.
 - There is a short privacy note covering the adult’s email, Google sign-in, guest views of public lists, child profiles with no login of their own, the fact that claim details stay hidden from the recipient, and the fact that a shopping list is private to the shopper. It also says gift titles, notes, and prices the person can already see may be sent to generate gift ideas, that a friend who can see a list can poke them to add gifts in a price band and the editors see that friend’s name, and that a rating of a gift they received is anonymous to other people, including the giver. The trial does not collect age or gender. The note also says a browser agent can use the signed-in tab to take the same actions as the person, and that it cannot see claim details the person cannot see. It says Nicelist uses Google Tag Manager and Google Analytics to measure how the site is used, and that those events do not include the contents of a list, the share token, or who claimed a gift. It says the Chrome extension, signed in with the same account, can read the product page the owner is viewing and send the title, the full URL, the price, and the selected size or color to Nicelist, and that it shows the owner view only.
 - Gift ideas are not sponsored, and they are not partner links. The list still works when ideas are unavailable.
 
+### Seasons, images, and contributions
+
+Lists have a year. Existing lists are 2026. A past year is read-only: no gift edits and no new claims. Starting the next season creates the next wishlist and a Christmas shopping list for that year. It copies people in their current order and keeps standing notes. It does not copy plans, claims, purchased marks, or the total. Marking a gift again next year stores a title snapshot. The next season shows last year as read-only history, offers those gifts first, and can copy one into a new private planned gift. Last year’s total is one line.
+
+A pasted product URL is fetched for a title, a price, and an image. The fetch uses that exact URL. It does not follow a redirect or a canonical link. Size or color is read only from the query string or structured data on that response. The image is copied into storage. A failed fetch leaves the pasted URL, and a failed image copy still saves the gift. List cards show the image. A public link preview shows the list name and up to two gift titles. Friends-only, private, and unknown tokens show only “Nicelist”.
+
+After reveal, purchased slots include the buyer’s display name. Reserved slots stay unlabeled. The reveal screen is a count first, then a thank-you list.
+
+A custom gift can store a goal. A signed-in shopper can chip in. Shoppers and guests see the goal and progress. Guests do not see contributor names. Until reveal, the owner sees the goal they set and does not see the contributed total or who paid. After reveal they see the balance and who paid, and can receive the net amount. A shopper can refund their own contribution before reveal. There is no refund after reveal.
+
+Shopper views refetch when a gift is reserved, purchased, or released. The owner page does not subscribe to those changes. The owner page hears only that a gift was added, edited, or deleted.
+
+Mail between visits covers a friend request, a poke to the managing adults, a claim note to friends who can already see the list, and a daily still-open count. The claim note names the gift and says taken or purchased. It does not name the buyer. Nothing about a claim goes to the recipient.
+
+The same product reader and popup are shared with a Safari web extension. The iPhone wrapper is produced with `safari-web-extension-converter` and is not submitted from this repository. A signed-in owner can also add a shared or pasted URL at `/add`.
+
 ## 3. Post-soft launch
 
-These are real follow-ups. They are out of the Christmas trial.
+These are real follow-ups. They are out of the current release.
 
 ### Product
 
 - Drag-and-drop item order and priority.
 - Group lists, such as one list for a household rather than a person.
-- A directory for browsing public lists, plus search across people and lists. Soft launch finds lists through friends and through a link the owner shares.
-
-A past season stays read-only. Wishlists gain a year, so a 2026 list can sit beside a later one. The shopper can keep a shopping list for each season.
-
-Starting the next shopping list copies the previous roster. The people come along in the same order, including a name-only person, and each person’s standing note is already there because it does not belong to one year. This year’s wishlists show up on their own, because the person is the same person. The new list does not copy claims, purchased marks, private planned gifts, or the old total.
-
-Under each person, last year is a short read-only history: the gifts this shopper gave, and which of them were marked **again next year**. The shopper can bring one forward as a new private planned gift. Those marked **again next year** are offered first. Last year’s total is one line of context, not a budget. The previous shopping list stays as it was.
-
-### Contributions
-
-A custom gift can collect money toward a cost, such as a trip. This waits until after the trial. It needs a payment provider, refunds, fees, and a payout to the owner. The owner cannot see that money has arrived before they reveal the list, which means Nicelist would hold the funds until then. The trial already lets someone claim “a trip to Thailand” and mark it gotten, without taking payment.
-
-- A custom gift can have a goal amount.
-- A signed-in shopper can contribute toward that goal. Other shoppers see the progress. The owner does not, until reveal.
-- Contributions can be refunded before reveal. After reveal, the owner can receive the balance.
-
-### Shopping help
-
-- Paste a product URL and fill title, price, and image from the page. The trial saves the link and a title the owner types. It does not fetch the product page. When a fetch is added, a failure leaves the URL in place. A fetch may read size and color from the URL or from structured data for that exact URL. It does not follow a canonical link to a parent product, and it does not invent a variant when the page shows the default one.
-- Images uploaded for a gift, stored in S3. The Chrome extension can then send the image it reads from the product page.
-- Show the buyer’s name to the owner after reveal, for thank-you notes.
+- A directory for browsing public lists, plus search across people and lists. Lists are found through friends and through a link the owner shares.
 
 ### Taste profile
 
@@ -403,15 +399,8 @@ An adult can also add an age band and a gender. Both are optional, neither is a 
 
 Those fields change the anonymous line when a cohort of people who received the gift is large enough that one person or one household cannot be picked out. The line can then name that group, in the form “Male sports fans between 25 and 50 rated this 5 stars.” A smaller cohort keeps the trial’s generic line, or no line. The line appears on a later suggestion of that gift, not on a wishlist, and not to the giver of a particular one. The privacy note names the optional age band and gender, and says the line is an aggregate of people who received it.
 
-### Browser extension
-
-- Safari, after the Chrome extension in the trial is solid.
-- Sending the product image the Chrome extension reads on the page, once gift images are stored in S3.
-
 ### Collaboration
 
-- Live updates when someone else reserves a gift, so two open tabs do not race on stale quantity.
-- Email when a friend request arrives, email when a friend pokes them for ideas, and email to other shoppers when a gift they can see is reserved or purchased. The owner gets no mail about reserves or purchases before they reveal the list.
 - Sharing one private list with a specific person who is not a friend, without changing that list’s visibility.
 - Comments on a gift between shoppers, hidden from the owner.
 - A shopper can suggest a gift the recipient does not see. Other shoppers see it and can claim it. Managing adults already add those gifts on a child’s list during the trial. A private planned gift on a shopping list stays visible only to the shopper who wrote it.
@@ -441,7 +430,7 @@ Any store link is already a gift in the trial, including a shop with no partner 
 - Amplify GraphQL models or any generated CRUD API. Owner, shopper, and guest payloads stay hand-written resolvers.
 - A VPC, NAT Gateway, Aurora or another database server, ElastiCache, and API Gateway for ordinary reads and writes.
 - Lambda for ordinary list and gift reads and writes. A gift-idea request, and a later Associates report job, may use Lambda.
-- AppSync subscriptions during the trial. Live updates remain the collaboration follow-up above.
+- AppSync subscriptions that deliver a claim payload to the recipient. Shoppers refetch. The owner hears only that a gift was added, edited, or deleted.
 - Cognito Plus, provisioned DynamoDB capacity, and provisioned Lambda concurrency.
 - Native iOS and Android apps.
 - Public profiles, follows, and a social feed.

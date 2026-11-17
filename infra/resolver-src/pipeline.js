@@ -24,6 +24,10 @@ export function request(ctx) {
     askForIdeas: "ideas",
     askForShoppingIdeas: "ideas",
     receivedGifts: "received",
+    previewProduct: "preview",
+    startContribution: "checkout",
+    startPayoutOnboarding: "checkout",
+    startNextSeason: "shopping",
   };
   ctx.stash.shape = shapes[field] || "";
   if (ctx.args && ctx.args.giftId) ctx.stash.giftId = ctx.args.giftId;
@@ -45,6 +49,7 @@ export function response(ctx) {
       stash.associateTag,
       stash.pokes || [],
       stash.profiles || {},
+      stash.contributions || [],
     );
   }
   if (stash.shape === "guest") {
@@ -55,6 +60,7 @@ export function response(ctx) {
       stash.claims || [],
       stash.associateTag,
       stash.profiles || {},
+      stash.contributions || [],
     );
   }
   if (stash.shape === "shop") {
@@ -68,10 +74,15 @@ export function response(ctx) {
       stash.associateTag,
       stash.pokes || [],
       stash.profiles || {},
+      stash.contributions || [],
     );
   }
   if (stash.shape === "friends") return shapeFriends(stash.rows || []);
-  if (stash.shape === "shopping") return shapeShopping(stash.rows || []);
+  if (stash.shape === "shopping") return shapeShopping(stash.rows || [], [], stash.activeYear);
+  if (stash.shape === "preview") {
+    return stash.preview || { title: null, price: null, imageUrl: null, variantNote: null };
+  }
+  if (stash.shape === "checkout") return stash.checkout || null;
   if (stash.shape === "shoppingPerson") {
     return shapeShoppingPerson(
       stash.personId,
@@ -82,6 +93,7 @@ export function response(ctx) {
       stash.associateTag,
       stash.pokes || [],
       stash.profiles || {},
+      stash.contributions || [],
     );
   }
   if (stash.shape === "ideas") {

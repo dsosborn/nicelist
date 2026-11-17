@@ -27,6 +27,8 @@ infra/backend.hcl
 infra/.schema.graphql
 infra/.schema.base64
 infra/lambda/*.zip
+infra/lambda/preview-edge.generated.mjs
+infra/build/
 infra/resolvers/built/
 
 # IDE

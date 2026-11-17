@@ -3,6 +3,10 @@ import { util, runtime } from "@aws-appsync/utils";
 export function request(ctx) {
   const list = ctx.stash.list;
   if (!list || ctx.stash.notFound) util.error("This list wasn't found.");
+  if (ctx.info.fieldName === "pokeList") {
+    const locked = seasonLockError(list);
+    if (locked) util.error(locked);
+  }
   const field = ctx.info.fieldName;
   if (field === "dismissPoke") {
     if (!canManage(list, ctx.stash.userId)) util.error("This list wasn't found.");
@@ -56,5 +60,14 @@ export function request(ctx) {
 
 export function response(ctx) {
   if (ctx.error) util.error(ctx.error.message, ctx.error.type);
+  if (ctx.info.fieldName === "pokeList" && ctx.stash.list && ctx.stash.result) {
+    ctx.stash.mail = {
+      action: "poke",
+      managerIds: managerIdsOf(ctx.stash.list),
+      senderName: profileName(ctx),
+      band: ctx.args.band,
+      listName: ctx.stash.list.name,
+    };
+  }
   return ctx.stash.result;
 }

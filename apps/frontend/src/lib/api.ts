@@ -108,22 +108,34 @@ export type GiftInput = {
   kind: GiftKind;
   title?: string;
   url?: string;
+  imageUrl?: string | null;
   price?: number | null;
+  goalCents?: number | null;
   notes?: string;
   quantity?: number;
   timingPhrase?: TimingPhrase | null;
   membershipPhrase?: MembershipPhrase | null;
 };
 
+export type ProductPreview = {
+  title: string | null;
+  price: number | null;
+  imageUrl: string | null;
+  variantNote: string | null;
+};
+
 const summaryFields = `
-  id name visibility revealedAt shareToken recipientId recipientName isChild
+  id name visibility revealedAt shareToken recipientId recipientName isChild year readOnly
 `;
 
+const contributorFields = `id displayName amountCents mine`;
+
 const ownerGiftFields = `
-  id kind title url price notes quantity timingPhrase membershipPhrase createdAt
-  slots { index status }
+  id listId kind title url imageUrl price goalCents notes quantity timingPhrase membershipPhrase createdAt
+  slots { index status shopperName }
   shopperSlots { index status shopperName shopperNote claimId mine }
-  openCount
+  openCount contributedCents netCents
+  contributors { ${contributorFields} }
 `;
 
 const pokeFields = `id senderName band createdAt`;
@@ -245,6 +257,8 @@ function giftVars(input: GiftInput) {
     kind: input.kind,
     title: input.title ?? null,
     url: input.url ?? null,
+    imageUrl: input.imageUrl ?? null,
+    goalCents: input.goalCents ?? null,
     price: input.price ?? null,
     notes: input.notes ?? null,
     quantity: input.quantity ?? null,
@@ -257,7 +271,9 @@ const giftArgs = `
   $kind: GiftKind!
   $title: String
   $url: String
+  $imageUrl: String
   $price: Int
+  $goalCents: Int
   $notes: String
   $quantity: Int
   $timingPhrase: TimingPhrase
@@ -268,7 +284,9 @@ const giftPass = `
   kind: $kind
   title: $title
   url: $url
+  imageUrl: $imageUrl
   price: $price
+  goalCents: $goalCents
   notes: $notes
   quantity: $quantity
   timingPhrase: $timingPhrase
@@ -290,8 +308,8 @@ export async function updateGift(
   input: Omit<GiftInput, "kind"> & { kind?: GiftKind },
 ) {
   const data = await gql<{ updateGift: OwnerGift }>(
-    `mutation ($listId: ID!, $id: ID!, $title: String, $url: String, $price: Int, $notes: String, $quantity: Int, $timingPhrase: TimingPhrase, $membershipPhrase: MembershipPhrase) {
-      updateGift(listId: $listId, id: $id, title: $title, url: $url, price: $price, notes: $notes, quantity: $quantity, timingPhrase: $timingPhrase, membershipPhrase: $membershipPhrase) {
+    `mutation ($listId: ID!, $id: ID!, $title: String, $url: String, $imageUrl: String, $price: Int, $goalCents: Int, $notes: String, $quantity: Int, $timingPhrase: TimingPhrase, $membershipPhrase: MembershipPhrase) {
+      updateGift(listId: $listId, id: $id, title: $title, url: $url, imageUrl: $imageUrl, price: $price, goalCents: $goalCents, notes: $notes, quantity: $quantity, timingPhrase: $timingPhrase, membershipPhrase: $membershipPhrase) {
         ${ownerGiftFields}
       }
     }`,
@@ -300,7 +318,9 @@ export async function updateGift(
       id,
       title: input.title ?? null,
       url: input.url ?? null,
+      imageUrl: input.imageUrl ?? null,
       price: input.price ?? null,
+      goalCents: input.goalCents ?? null,
       notes: input.notes ?? null,
       quantity: input.quantity ?? null,
       timingPhrase: input.timingPhrase ?? null,
@@ -319,8 +339,9 @@ export async function deleteGift(listId: string, id: string) {
 }
 
 const shopperGiftFields = `
-  id kind title url price notes quantity timingPhrase membershipPhrase createdAt
-  openCount
+  id listId kind title url imageUrl price goalCents notes quantity timingPhrase membershipPhrase createdAt
+  openCount contributedCents netCents
+  contributors { ${contributorFields} }
   slots { index status shopperName shopperNote claimId mine }
 `;
 
@@ -329,7 +350,7 @@ export async function fetchGuestList(token: string) {
     `query ($token: String!) {
       guestList(token: $token) {
         name recipientName commissionDisclosure
-        gifts { id kind title url price notes quantity timingPhrase membershipPhrase createdAt openCount reservedCount purchasedCount }
+        gifts { id kind title url imageUrl price goalCents notes quantity timingPhrase membershipPhrase createdAt openCount reservedCount purchasedCount contributedCents }
       }
     }`,
     { token },
@@ -369,12 +390,13 @@ export async function setPurchased(
   slot: number,
   purchased: boolean,
   note?: string,
+  personId?: string,
 ) {
   const data = await gql<{ setPurchased: ShopperGift }>(
-    `mutation ($listId: ID!, $giftId: ID!, $slot: Int!, $purchased: Boolean!, $note: String) {
-      setPurchased(listId: $listId, giftId: $giftId, slot: $slot, purchased: $purchased, note: $note) { ${shopperGiftFields} }
+    `mutation ($listId: ID!, $giftId: ID!, $slot: Int!, $purchased: Boolean!, $note: String, $personId: ID) {
+      setPurchased(listId: $listId, giftId: $giftId, slot: $slot, purchased: $purchased, note: $note, personId: $personId) { ${shopperGiftFields} }
     }`,
-    { listId, giftId, slot, purchased, note: note ?? null },
+    { listId, giftId, slot, purchased, note: note ?? null, personId: personId ?? null },
   );
   if (purchased) trackTrialEvent("mark_purchased");
   return data.setPurchased;
@@ -455,9 +477,10 @@ export async function removeFriend(userId: string) {
 }
 
 const shoppingFields = `
-  name totalCents againClaimIds
+  name year totalCents lastYearTotalCents againClaimIds
   people { id name kind refId standingNote }
-  plannedGifts { id personId kind title url price notes timingPhrase membershipPhrase purchased againNextYear }
+  plannedGifts { id personId kind title url imageUrl price notes timingPhrase membershipPhrase purchased againNextYear }
+  history { id personId title price againNextYear }
 `;
 
 export async function fetchShoppingList() {
@@ -499,9 +522,9 @@ export async function setStandingNote(personId: string, note: string) {
 
 export async function addPlannedGift(personId: string, input: GiftInput) {
   const data = await gql<{ addPlannedGift: PlannedGift }>(
-    `mutation ($personId: ID!, ${giftArgs}) {
-      addPlannedGift(personId: $personId, ${giftPass}) {
-        id personId kind title url price notes timingPhrase membershipPhrase purchased againNextYear
+    `mutation ($personId: ID!, $kind: GiftKind!, $title: String, $url: String, $imageUrl: String, $price: Int, $notes: String, $quantity: Int, $timingPhrase: TimingPhrase, $membershipPhrase: MembershipPhrase) {
+      addPlannedGift(personId: $personId, kind: $kind, title: $title, url: $url, imageUrl: $imageUrl, price: $price, notes: $notes, timingPhrase: $timingPhrase, membershipPhrase: $membershipPhrase) {
+        id personId kind title url imageUrl price notes timingPhrase membershipPhrase purchased againNextYear
       }
     }`,
     { personId, ...giftVars(input) },
@@ -553,10 +576,18 @@ export async function setPlannedPurchased(personId: string, id: string, purchase
   return data.setPlannedPurchased;
 }
 
-export async function setAgainNextYear(claimId: string, personId: string, again: boolean) {
+export async function setAgainNextYear(
+  claimId: string,
+  personId: string,
+  again: boolean,
+  title?: string,
+  price?: number | null,
+) {
   await gql(
-    `mutation ($claimId: ID!, $personId: ID!, $again: Boolean!) { setAgainNextYear(claimId: $claimId, personId: $personId, again: $again) }`,
-    { claimId, personId, again },
+    `mutation ($claimId: ID!, $personId: ID!, $again: Boolean!, $title: String, $price: Int) {
+      setAgainNextYear(claimId: $claimId, personId: $personId, again: $again, title: $title, price: $price)
+    }`,
+    { claimId, personId, again, title: title ?? null, price: price ?? null },
   );
 }
 
@@ -619,6 +650,80 @@ export async function rateSuggestion(id: string, stars: number) {
     { id, stars },
   );
   return data.rateSuggestion;
+}
+
+export async function previewProduct(url: string): Promise<ProductPreview> {
+  const data = await gql<{ previewProduct: ProductPreview }>(
+    `mutation ($url: String!) { previewProduct(url: $url) { title price imageUrl variantNote } }`,
+    { url },
+  );
+  return data.previewProduct;
+}
+
+export async function setGiftGoal(listId: string, id: string, goalCents: number | null) {
+  const data = await gql<{ setGiftGoal: OwnerGift }>(
+    `mutation ($listId: ID!, $id: ID!, $goalCents: Int) { setGiftGoal(listId: $listId, id: $id, goalCents: $goalCents) { ${ownerGiftFields} } }`,
+    { listId, id, goalCents },
+  );
+  return data.setGiftGoal;
+}
+
+export async function startContribution(listId: string, giftId: string, amountCents: number) {
+  const data = await gql<{ startContribution: { url: string } }>(
+    `mutation ($listId: ID!, $giftId: ID!, $amountCents: Int!) { startContribution(listId: $listId, giftId: $giftId, amountCents: $amountCents) { url } }`,
+    { listId, giftId, amountCents },
+  );
+  return data.startContribution.url;
+}
+
+export async function refundContribution(listId: string, contributionId: string) {
+  await gql(
+    `mutation ($listId: ID!, $contributionId: ID!) { refundContribution(listId: $listId, contributionId: $contributionId) }`,
+    { listId, contributionId },
+  );
+}
+
+export async function startPayoutOnboarding() {
+  const data = await gql<{ startPayoutOnboarding: { url: string } }>(
+    `mutation { startPayoutOnboarding { url } }`,
+  );
+  return data.startPayoutOnboarding.url;
+}
+
+export async function receiveBalance(listId: string) {
+  await gql(`mutation ($listId: ID!) { receiveBalance(listId: $listId) }`, { listId });
+}
+
+export async function startNextSeason() {
+  const data = await gql<{ startNextSeason: ShoppingList }>(
+    `mutation { startNextSeason { ${shoppingFields} } }`,
+  );
+  return data.startNextSeason;
+}
+
+export function watchList(
+  kind: "shopper" | "owner",
+  listId: string,
+  onChange: () => void,
+) {
+  if (typeof window !== "undefined" && (window as Window & { __nicelistTestAuth?: boolean }).__nicelistTestAuth) {
+    return () => {};
+  }
+  const field = kind === "shopper" ? "onShopperGift" : "onOwnerGift";
+  const query = `subscription ($listId: ID!) { ${field}(listId: $listId) { listId } }`;
+  try {
+    const result = client.graphql({ query, variables: { listId }, authMode: "userPool" }) as {
+      subscribe?: (observer: { next: () => void; error: () => void }) => { unsubscribe: () => void };
+    };
+    if (!result.subscribe) return () => {};
+    const sub = result.subscribe({
+      next: () => onChange(),
+      error: () => {},
+    });
+    return () => sub.unsubscribe();
+  } catch {
+    return () => {};
+  }
 }
 
 export function bandOf(price: number | null | undefined): PriceBand | null {

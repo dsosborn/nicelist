@@ -9,7 +9,7 @@ describe("readProductFromDocument", () => {
         <head>
           <link rel="canonical" href="https://www.amazon.com/dp/B00PARENT" />
           <script type="application/ld+json">
-            {"@type":"Product","name":" Merino Crew Sweater ","offers":{"price":"68.50"}}
+            {"@type":"Product","name":" Merino Crew Sweater ","image":"https://cdn.example/sweater.jpg","offers":{"price":"68.50"}}
           </script>
         </head>
         <body>
@@ -26,6 +26,7 @@ describe("readProductFromDocument", () => {
     expect(result.url).toBe(exactUrl);
     expect(result.priceCents).toBe(6850);
     expect(result.variantNote).toBe("size: Medium, color: Navy");
+    expect(result.imageUrl).toBe("https://cdn.example/sweater.jpg");
   });
 
   it("reads a local shop's select and checked radio variants", () => {

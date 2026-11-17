@@ -39,8 +39,11 @@ import {
   fetchShopList,
   inviteCoManager,
   membershipCopy,
+  previewProduct,
   rateGift,
   rateSuggestion,
+  receiveBalance,
+  refundContribution,
   releaseGift,
   removeChild,
   removeCoManager,
@@ -50,7 +53,10 @@ import {
   rotateShareToken,
   setListVisibility,
   setPurchased,
+  startContribution,
+  startPayoutOnboarding,
   thinBands,
+  watchList,
   timingCopy,
   updateGift,
   visibilityCopy,
@@ -148,6 +154,17 @@ function OwnView({
     };
   }, [user, id, router]);
 
+  // Refetch replaces the list object. Subscribing to that object would loop.
+  useEffect(() => {
+    if (!list || list.managing) return;
+    return watchList("owner", list.id, () => {
+      void fetchMyList(list.id).then((next) => {
+        if (next) setList(next);
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list?.id, list?.managing]);
+
   if (!user) return <p>Loading…</p>;
   if (error) return <p role="alert" {...stylex.props(app.error)}>{error}</p>;
   if (!list) return <p>Loading…</p>;
@@ -196,7 +213,7 @@ function OwnView({
       {!list.revealedAt ? (
         <ConfirmDialog
           title="Reveal this list?"
-          description="You will see which gifts were purchased. You still will not see who bought them. New reservations stop."
+          description="You will see which gifts were purchased, and who bought them, so you can say thank you. New reservations stop."
           confirmLabel="Reveal"
           onConfirm={async () => {
             const revealed = await revealList(list.id);
@@ -249,8 +266,9 @@ function OwnView({
       {list.gifts.length === 0 ? (
         <p>Add a product link, a custom gift, an experience, or a membership.</p>
       ) : null}
-      {!list.revealedAt ? (
+      {!list.revealedAt && !list.readOnly ? (
         <GiftForm
+          onPreview={previewProduct}
           onAdd={async (input) => {
             await addGift(list.id, input);
             const next = await fetchMyList(list.id);
@@ -258,6 +276,7 @@ function OwnView({
           }}
         />
       ) : null}
+      {list.readOnly ? <p>This season is read-only.</p> : null}
       {!childSafe && (bands.length > 0 || list.pokes.length > 0) ? (
         <Ideas
           listId={list.id}
@@ -341,10 +360,13 @@ function OwnerGiftCard({
 
   const asShopperGift: ShopperGift = {
     id: gift.id,
+    listId: gift.listId,
     kind: gift.kind,
     title: gift.title,
     url: gift.url,
+    imageUrl: gift.imageUrl,
     price: gift.price,
+    goalCents: gift.goalCents,
     notes: gift.notes,
     quantity: gift.quantity,
     timingPhrase: gift.timingPhrase,
@@ -352,10 +374,22 @@ function OwnerGiftCard({
     createdAt: gift.createdAt,
     slots: gift.shopperSlots ?? [],
     openCount: gift.openCount ?? 0,
+    contributedCents: gift.contributedCents,
+    netCents: gift.netCents,
+    contributors: gift.contributors,
   };
 
   return (
     <li {...stylex.props(app.card)}>
+      {gift.imageUrl ? (
+        // Gift images are already on CloudFront. The static export does not optimize them.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={gift.imageUrl}
+          alt={giftTitle(gift)}
+          style={{ width: "100%", maxHeight: 240, objectFit: "cover" }}
+        />
+      ) : null}
       {gift.url ? (
         <a href={gift.url} target="_blank" rel="noreferrer">
           <strong>{giftTitle(gift)}</strong>
@@ -365,6 +399,37 @@ function OwnerGiftCard({
       )}
       {gift.notes ? <p>{gift.notes}</p> : null}
       {gift.price != null ? <p>{dollars(gift.price)}</p> : null}
+      {gift.goalCents ? <p>Goal {dollars(gift.goalCents)}</p> : null}
+      {showClaims && list.revealedAt && gift.contributedCents ? (
+        <section>
+          <p>Received {dollars(gift.contributedCents)}</p>
+          {gift.contributors?.map((person) => (
+            <p key={person.id}>
+              {person.displayName} contributed {dollars(person.amountCents)}
+            </p>
+          ))}
+          <button
+            type="button"
+            {...stylex.props(app.quiet)}
+            onClick={async () => {
+              const url = await startPayoutOnboarding();
+              window.location.assign(url);
+            }}
+          >
+            Connect a payout account
+          </button>
+          <button
+            type="button"
+            {...stylex.props(app.button)}
+            onClick={async () => {
+              await receiveBalance(list.id);
+              await onReload();
+            }}
+          >
+            Receive the balance
+          </button>
+        </section>
+      ) : null}
       {gift.quantity > 1 ? <p>Quantity: {gift.quantity}</p> : null}
       {gift.timingPhrase ? <p>{timingCopy[gift.timingPhrase]}</p> : null}
       {gift.membershipPhrase ? (
@@ -378,7 +443,11 @@ function OwnerGiftCard({
                 slot.status === "PURCHASED" ? app.statusBought : app.statusOpen,
               )}
             >
-              {slot.status === "PURCHASED" ? "Purchased" : "Still open"}
+              {slot.status === "PURCHASED"
+                ? slot.shopperName
+                  ? `Purchased by ${slot.shopperName}`
+                  : "Purchased"
+                : "Still open"}
             </p>
           ))
         : null}
@@ -972,6 +1041,17 @@ function ShareView({
     };
   }, [token, signedIn, authLoading, router]);
 
+  // Refetch replaces the shop object. Subscribing to that object would loop.
+  useEffect(() => {
+    if (!shop) return;
+    return watchList("shopper", shop.id, () => {
+      void fetchShopList(token).then((next) => {
+        if (next) setShop(next);
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop?.id, token]);
+
   if (error) return <p role="alert" {...stylex.props(app.error)}>{error}</p>;
   if (notFound) return <p>This list wasn&apos;t found.</p>;
   const list = signedIn ? shop : guest;
@@ -1000,9 +1080,60 @@ function ShareView({
       >
         {(signedIn ? shop?.gifts ?? [] : guest?.gifts ?? []).map((gift) => (
           <li id={`gift-${gift.id}`} key={gift.id} {...stylex.props(app.card)}>
+            {gift.imageUrl ? (
+              // Gift images are already on CloudFront. The static export does not optimize them.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={gift.imageUrl}
+                alt={giftTitle(gift)}
+                style={{ width: "100%", maxHeight: 240, objectFit: "cover" }}
+              />
+            ) : null}
             <strong>{giftTitle(gift)}</strong>
             {gift.notes ? <p>{gift.notes}</p> : null}
             {gift.price != null ? <p>{dollars(gift.price)}</p> : null}
+            {gift.goalCents ? (
+              <p>
+                Goal {dollars(gift.goalCents)}
+                {gift.contributedCents ? `, ${dollars(gift.contributedCents)} in` : ""}
+              </p>
+            ) : null}
+            {"contributors" in gift && gift.contributors
+              ? gift.contributors.map((person) => (
+                  <p key={person.id}>
+                    {person.displayName} {dollars(person.amountCents)}
+                    {person.mine ? (
+                      <button
+                        type="button"
+                        {...stylex.props(app.quiet)}
+                        onClick={async () => {
+                          if (!shop) return;
+                          await refundContribution(shop.id, person.id);
+                          const next = await fetchShopList(token);
+                          if (next) setShop(next);
+                        }}
+                      >
+                        Refund
+                      </button>
+                    ) : null}
+                  </p>
+                ))
+              : null}
+            {"goalCents" in gift && gift.goalCents && shop && !shop.revealed ? (
+              <button
+                type="button"
+                {...stylex.props(app.button)}
+                onClick={async () => {
+                  const raw = window.prompt("How much would you like to chip in?");
+                  const cents = raw ? Math.round(Number(raw) * 100) : 0;
+                  if (!cents) return;
+                  const url = await startContribution(shop.id, gift.id, cents);
+                  window.location.assign(url);
+                }}
+              >
+                Chip in
+              </button>
+            ) : null}
             {gift.timingPhrase ? <p>{timingCopy[gift.timingPhrase]}</p> : null}
             {gift.membershipPhrase ? (
               <p>{membershipCopy[gift.membershipPhrase]}</p>

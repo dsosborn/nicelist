@@ -26,7 +26,13 @@ export default meta;
 
 const sampleGift: ShopperGift = {
   id: "gift-1",
+  listId: "list-1",
   kind: "PRODUCT",
+  imageUrl: null,
+  goalCents: null,
+  contributedCents: null,
+  netCents: null,
+  contributors: null,
   title: "Navy cable sweater",
   url: "https://www.amazon.com/dp/B00SWEATER?tag=nicelist-20&ascsubtag=claim-1",
   price: 4500,
@@ -133,6 +139,8 @@ export const SwitchListMenu = {
               recipientId: "u1",
               recipientName: "Ada",
               isChild: false,
+              year: 2026,
+              readOnly: false,
             },
             {
               id: "l2",
@@ -140,6 +148,8 @@ export const SwitchListMenu = {
               visibility: "PUBLIC",
               revealedAt: null,
               shareToken: "t2",
+              year: 2026,
+              readOnly: false,
               recipientId: "c1",
               recipientName: "Leo",
               isChild: true,

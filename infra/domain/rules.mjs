@@ -1,6 +1,7 @@
 const LIMITS = {
   title: 200,
   url: 2048,
+  imageUrl: 2048,
   notes: 1000,
   shopperNote: 200,
   standingNote: 500,
@@ -13,6 +14,8 @@ const LIMITS = {
   ideaCap: 20,
   ratingCohort: 10,
 };
+
+const DEFAULT_YEAR = 2026;
 
 const SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const BANDS = { UNDER_25: 1, MID: 1, OVER_75: 1 };
@@ -112,6 +115,16 @@ function validateGiftInput(input) {
       return { error: "Price is invalid." };
     }
   }
+  const imageUrl = clean(input.imageUrl);
+  if (imageUrl.length > LIMITS.imageUrl) return { error: "Image link is too long." };
+  let goalCents = null;
+  if (input.goalCents !== undefined && input.goalCents !== null && input.goalCents !== "") {
+    if (kind !== "CUSTOM") return { error: "Only a custom gift can collect money." };
+    if (typeof input.goalCents !== "number" || input.goalCents < 1 || input.goalCents > LIMITS.priceMax) {
+      return { error: "Goal amount is invalid." };
+    }
+    goalCents = input.goalCents;
+  }
   if (kind === "PRODUCT") {
     if (!url) return { error: "A product needs a link." };
   } else if (kind === "CUSTOM" || kind === "EXPERIENCE" || kind === "MEMBERSHIP") {
@@ -138,10 +151,85 @@ function validateGiftInput(input) {
       notes: notes,
       quantity: quantity,
       price: input.price === undefined ? null : input.price,
+      imageUrl: imageUrl,
+      goalCents: goalCents,
       timingPhrase: kind === "EXPERIENCE" ? input.timingPhrase : null,
       membershipPhrase: kind === "MEMBERSHIP" ? input.membershipPhrase : null,
     },
   };
+}
+
+function listYear(list) {
+  if (list && typeof list.year === "number" && list.year > 1900) return list.year;
+  return DEFAULT_YEAR;
+}
+
+function activeYearOf(profile) {
+  if (profile && typeof profile.seasonYear === "number" && profile.seasonYear > 1900) {
+    return profile.seasonYear;
+  }
+  return DEFAULT_YEAR;
+}
+
+function seasonLockError(list) {
+  if (list && list.readOnly) return "This season is read-only.";
+  return null;
+}
+
+function shoppingListKey(year) {
+  return "LIST#" + year;
+}
+
+function planKey(year, personId, id) {
+  return "PLAN#" + year + "#" + personId + "#" + id;
+}
+
+function againKey(year, claimId) {
+  return "AGAIN#" + year + "#" + claimId;
+}
+
+function givenKey(year, personId, claimId) {
+  return "GIVEN#" + year + "#" + personId + "#" + claimId;
+}
+
+function rowYear(sk) {
+  if (!sk) return DEFAULT_YEAR;
+  if (sk === "LIST") return DEFAULT_YEAR;
+  const parts = sk.split("#");
+  if (parts[0] === "LIST" && parts.length >= 2) {
+    const year = parseInt(parts[1], 10);
+    return year > 1900 ? year : DEFAULT_YEAR;
+  }
+  if (parts[0] === "PLAN") {
+    if (parts.length >= 4) {
+      const year = parseInt(parts[1], 10);
+      return year > 1900 ? year : DEFAULT_YEAR;
+    }
+    return DEFAULT_YEAR;
+  }
+  if (parts[0] === "AGAIN") {
+    if (parts.length >= 3) {
+      const year = parseInt(parts[1], 10);
+      return year > 1900 ? year : DEFAULT_YEAR;
+    }
+    return DEFAULT_YEAR;
+  }
+  if (parts[0] === "GIVEN") {
+    const year = parseInt(parts[1], 10);
+    return year > 1900 ? year : DEFAULT_YEAR;
+  }
+  return DEFAULT_YEAR;
+}
+
+function shoppingActiveYear(rows, profile) {
+  if (profile && typeof profile.seasonYear === "number") return profile.seasonYear;
+  let year = DEFAULT_YEAR;
+  (rows || []).forEach((row) => {
+    if (!row.sk || row.sk.indexOf("LIST") !== 0) return;
+    const found = rowYear(row.sk);
+    if (found > year) year = found;
+  });
+  return year;
 }
 
 function validateShopperNote(note) {
@@ -191,16 +279,69 @@ function appendAssociate(url, tag, subtag) {
 function giftFields(gift) {
   return {
     id: gift.id,
+    listId: gift.listId || null,
     kind: gift.kind,
     title: gift.title || null,
     url: gift.url || null,
+    imageUrl: gift.imageUrl || null,
     price: gift.price === undefined || gift.price === null || gift.price === "" ? null : gift.price,
+    goalCents:
+      gift.goalCents === undefined || gift.goalCents === null || gift.goalCents === ""
+        ? null
+        : gift.goalCents,
     notes: gift.notes || null,
     quantity: gift.quantity,
     timingPhrase: gift.timingPhrase || null,
     membershipPhrase: gift.membershipPhrase || null,
     createdAt: gift.createdAt || null,
   };
+}
+
+function paidContributions(gift, contributions) {
+  return (contributions || []).filter(
+    (row) => row.giftId === gift.id && row.status === "PAID",
+  );
+}
+
+function contributionTotals(gift, contributions, withNames, shopperId) {
+  const rows = paidContributions(gift, contributions);
+  const contributedCents = rows.reduce(
+    (sum, row) => sum + (typeof row.amountCents === "number" ? row.amountCents : 0),
+    0,
+  );
+  const netCents = rows.reduce((sum, row) => {
+    const amount = typeof row.amountCents === "number" ? row.amountCents : 0;
+    const fee = typeof row.feeCents === "number" ? row.feeCents : 0;
+    return sum + (amount - fee);
+  }, 0);
+  const view = { contributedCents: contributedCents, netCents: netCents };
+  if (withNames) {
+    view.contributors = rows.map((row) => ({
+      id: row.id || row.sk,
+      displayName: row.shopperName || "Someone",
+      amountCents: typeof row.amountCents === "number" ? row.amountCents : 0,
+      mine: !!(shopperId && row.shopperId === shopperId),
+    }));
+  }
+  return view;
+}
+
+function claimMailUserIds(list, friendIds, actorId) {
+  if (!list) return [];
+  const recipient = list.recipientId;
+  const managers = managerIdsOf(list).filter((id) => id !== recipient && id !== actorId);
+  const friends =
+    list.visibility === "PRIVATE"
+      ? []
+      : (friendIds || []).filter((id) => id !== recipient && id !== actorId);
+  const seen = {};
+  const out = [];
+  managers.concat(friends).forEach((id) => {
+    if (!id || id === recipient || seen[id]) return;
+    seen[id] = true;
+    out.push(id);
+  });
+  return out;
 }
 
 function sortBySlot(rows) {
@@ -230,18 +371,33 @@ function nameFromProfiles(profiles, userId, fallback) {
   return fallback || null;
 }
 
-function ownerGiftView(gift, claims, showSlots) {
+function ownerGiftView(gift, claims, showSlots, extra) {
   const view = giftFields(gift);
+  if (extra && extra.listId) view.listId = extra.listId;
   if (!showSlots) return view;
+  const profiles = extra && extra.profiles;
   const rows = claimsForGift(claims, gift.id);
-  view.slots = rows.map((row) => ({
-    index: row.slot,
-    status: row.status === "PURCHASED" ? "PURCHASED" : "OPEN",
-  }));
+  view.slots = rows.map((row) => {
+    const purchased = row.status === "PURCHASED";
+    const slot = {
+      index: row.slot,
+      status: purchased ? "PURCHASED" : "OPEN",
+    };
+    if (purchased) {
+      slot.shopperName = nameFromProfiles(profiles, row.shopperId, row.shopperName);
+    }
+    return slot;
+  });
+  if (extra && extra.contributions) {
+    const progress = contributionTotals(gift, extra.contributions, true, null);
+    view.contributedCents = progress.contributedCents;
+    view.netCents = progress.netCents;
+    view.contributors = progress.contributors;
+  }
   return view;
 }
 
-function shopperGiftView(gift, claims, shopperId, tag, onlyMine, profiles) {
+function shopperGiftView(gift, claims, shopperId, tag, onlyMine, profiles, contributions) {
   const rows = claimsForGift(claims, gift.id);
   const tallied = rows.reduce(
     (acc, row) => {
@@ -270,10 +426,14 @@ function shopperGiftView(gift, claims, shopperId, tag, onlyMine, profiles) {
   view.url = appendAssociate(gift.url, tag, tallied.held ? tallied.held.claimId : null);
   view.slots = tallied.slots;
   view.openCount = tallied.openCount;
+  const progress = contributionTotals(gift, contributions, true, shopperId);
+  view.contributedCents = progress.contributedCents;
+  view.netCents = progress.netCents;
+  view.contributors = progress.contributors;
   return view;
 }
 
-function guestGiftView(gift, claims, tag) {
+function guestGiftView(gift, claims, tag, contributions) {
   const rows = claimsForGift(claims, gift.id);
   const counts = rows.reduce(
     (acc, row) => ({
@@ -288,6 +448,8 @@ function guestGiftView(gift, claims, tag) {
   view.openCount = counts.openCount;
   view.reservedCount = counts.reservedCount;
   view.purchasedCount = counts.purchasedCount;
+  const progress = contributionTotals(gift, contributions, false);
+  view.contributedCents = progress.contributedCents;
   return view;
 }
 
@@ -342,12 +504,14 @@ function listSummary(list, profiles) {
     recipientId: list.recipientId,
     recipientName: recipientName,
     isChild: !!list.isChild,
+    year: listYear(list),
+    readOnly: !!list.readOnly,
   };
 }
 
-function shapeShoppingPerson(personId, listId, gifts, claims, userId, tag, pokes, profiles) {
+function shapeShoppingPerson(personId, listId, gifts, claims, userId, tag, pokes, profiles, contributions) {
   const out = (gifts || [])
-    .map((row) => shopperGiftView(row, claims, userId, tag, true, profiles))
+    .map((row) => shopperGiftView(row, claims, userId, tag, true, profiles, contributions))
     .filter((gift) => gift);
   const openCount = out.reduce((sum, gift) => sum + gift.openCount, 0);
   const myPokes = visiblePokes(
@@ -364,7 +528,7 @@ function shapeShoppingPerson(personId, listId, gifts, claims, userId, tag, pokes
   };
 }
 
-function shapeMyList(list, gifts, claims, userId, tag, pokes, profiles) {
+function shapeMyList(list, gifts, claims, userId, tag, pokes, profiles, contributions) {
   if (!list) return null;
   const showSlots = ownerSeesClaims(list, userId);
   const asShopper = canManage(list, userId) && list.recipientId !== userId;
@@ -372,15 +536,25 @@ function shapeMyList(list, gifts, claims, userId, tag, pokes, profiles) {
   const outGifts = asShopper
     ? rows
         .map((row) => {
-          const gift = shopperGiftView(row, claims, userId, tag, false, profiles);
+          const gift = shopperGiftView(row, claims, userId, tag, false, profiles, contributions);
           if (!gift) return null;
           const managed = giftFields(row);
+          managed.listId = list.id;
           managed.shopperSlots = gift.slots;
           managed.openCount = gift.openCount;
+          managed.contributedCents = gift.contributedCents;
+          managed.netCents = gift.netCents;
+          managed.contributors = gift.contributors;
           return managed;
         })
         .filter((gift) => gift)
-    : rows.map((row) => ownerGiftView(row, claims, showSlots));
+    : rows.map((row) =>
+        ownerGiftView(row, claims, showSlots, {
+          profiles: profiles,
+          contributions: showSlots ? contributions : null,
+          listId: list.id,
+        }),
+      );
   const summary = listSummary(list, profiles);
   summary.gifts = outGifts;
   summary.managing = asShopper;
@@ -392,7 +566,7 @@ function shapeMyList(list, gifts, claims, userId, tag, pokes, profiles) {
   return summary;
 }
 
-function shapeGuestList(list, gifts, claims, tag, profiles) {
+function shapeGuestList(list, gifts, claims, tag, profiles, contributions) {
   if (!list || list.visibility !== "PUBLIC") return null;
   const recipientName = list.isChild
     ? list.recipientName
@@ -400,15 +574,15 @@ function shapeGuestList(list, gifts, claims, tag, profiles) {
   return {
     name: list.name,
     recipientName: recipientName,
-    gifts: (gifts || []).map((row) => guestGiftView(row, claims, tag)),
+    gifts: (gifts || []).map((row) => guestGiftView(row, claims, tag, contributions)),
     commissionDisclosure: true,
   };
 }
 
-function shapeShopperList(list, gifts, claims, userId, friendIds, tag, pokes, profiles) {
+function shapeShopperList(list, gifts, claims, userId, friendIds, tag, pokes, profiles, contributions) {
   if (!list || !canShop(list, userId, friendIds)) return null;
   const out = (gifts || [])
-    .map((row) => shopperGiftView(row, claims, userId, tag, false, profiles))
+    .map((row) => shopperGiftView(row, claims, userId, tag, false, profiles, contributions))
     .filter((gift) => gift);
   const openCount = out.reduce((sum, gift) => sum + gift.openCount, 0);
   const recipientName = list.isChild
@@ -533,10 +707,57 @@ function friendIdsOf(rows) {
     .map((row) => row.otherId);
 }
 
-function shapeShopping(rows, claimedGifts) {
+function againIdOf(row) {
+  if (row.claimId) return row.claimId;
+  const parts = (row.sk || "").split("#");
+  if (parts[0] !== "AGAIN") return row.sk;
+  if (parts.length >= 3) return parts.slice(2).join("#");
+  return parts[1] || row.sk;
+}
+
+function sortAgainFirst(rows) {
+  const marked = (rows || []).filter((row) => row.againNextYear);
+  const rest = (rows || []).filter((row) => !row.againNextYear);
+  return marked.concat(rest);
+}
+
+function seasonHistory(rows, year) {
+  const byId = {};
+  (rows || []).forEach((row) => {
+    if (rowYear(row.sk) !== year) return;
+    if (row.sk.indexOf("GIVEN#") === 0 || (row.sk.indexOf("AGAIN#") === 0 && row.on)) {
+      const id = row.sk.indexOf("AGAIN#") === 0 ? againIdOf(row) : row.claimId || row.sk;
+      const key = (row.personId || "") + "#" + id;
+      const previous = byId[key];
+      byId[key] = {
+        id: id,
+        personId: row.personId,
+        title: row.title || (previous && previous.title) || "A gift",
+        price: typeof row.price === "number" ? row.price : previous ? previous.price : null,
+        againNextYear: !!(row.on || row.againNextYear || (previous && previous.againNextYear)),
+      };
+    }
+    if (row.sk.indexOf("PLAN#") === 0 && row.purchased) {
+      const key = (row.personId || "") + "#" + row.giftId;
+      byId[key] = {
+        id: row.giftId,
+        personId: row.personId,
+        title: row.title || "A gift",
+        price: typeof row.price === "number" ? row.price : null,
+        againNextYear: !!row.againNextYear,
+      };
+    }
+  });
+  return sortAgainFirst(Object.keys(byId).map((key) => byId[key]));
+}
+
+function shapeShopping(rows, claimedGifts, year) {
+  const active = year || shoppingActiveYear(rows);
+  const listName = "Christmas " + active;
   const base = (rows || []).reduce(
     (acc, row) => {
-      if (row.sk === "LIST") {
+      const isList = row.sk === "LIST" || (row.sk && row.sk.indexOf("LIST#") === 0);
+      if (isList && rowYear(row.sk) === active) {
         return {
           name: row.name || acc.name,
           people: acc.people,
@@ -562,7 +783,7 @@ function shapeShopping(rows, claimedGifts) {
           totalCents: acc.totalCents,
         };
       }
-      if (row.sk.indexOf("PLAN#") === 0) {
+      if (row.sk.indexOf("PLAN#") === 0 && rowYear(row.sk) === active) {
         const price = typeof row.price === "number" ? row.price : 0;
         return {
           name: acc.name,
@@ -574,6 +795,7 @@ function shapeShopping(rows, claimedGifts) {
               kind: row.kind,
               title: row.title || null,
               url: row.url || null,
+              imageUrl: row.imageUrl || null,
               price: row.price === undefined ? null : row.price,
               notes: row.notes || null,
               timingPhrase: row.timingPhrase || null,
@@ -586,19 +808,19 @@ function shapeShopping(rows, claimedGifts) {
           totalCents: acc.totalCents + price,
         };
       }
-      if (row.sk.indexOf("AGAIN#") === 0 && row.on) {
+      if (row.sk.indexOf("AGAIN#") === 0 && row.on && rowYear(row.sk) === active) {
         return {
           name: acc.name,
           people: acc.people,
           plannedGifts: acc.plannedGifts,
-          againClaimIds: acc.againClaimIds.concat([row.sk.substring(6)]),
+          againClaimIds: acc.againClaimIds.concat([againIdOf(row)]),
           totalCents: acc.totalCents,
         };
       }
       return acc;
     },
     {
-      name: "Christmas 2026",
+      name: listName,
       people: [],
       plannedGifts: [],
       againClaimIds: [],
@@ -610,6 +832,19 @@ function shapeShopping(rows, claimedGifts) {
     0,
   );
   base.totalCents = base.totalCents + extra;
+  base.year = active;
+  const previous = active - 1;
+  const history = seasonHistory(rows, previous);
+  base.history = history;
+  const planTotal = (rows || []).reduce((sum, row) => {
+    if (row.sk.indexOf("PLAN#") !== 0 || rowYear(row.sk) !== previous) return sum;
+    return sum + (typeof row.price === "number" ? row.price : 0);
+  }, 0);
+  const givenTotal = (rows || []).reduce((sum, row) => {
+    if (row.sk.indexOf("GIVEN#") !== 0 || rowYear(row.sk) !== previous) return sum;
+    return sum + (typeof row.price === "number" ? row.price : 0);
+  }, 0);
+  base.lastYearTotalCents = planTotal + givenTotal;
   return base;
 }
 
@@ -703,6 +938,17 @@ export {
   validateListName,
   validateGiftInput,
   validateShopperNote,
+  listYear,
+  activeYearOf,
+  seasonLockError,
+  shoppingListKey,
+  planKey,
+  againKey,
+  givenKey,
+  rowYear,
+  shoppingActiveYear,
+  claimMailUserIds,
+  contributionTotals,
   isAmazonProduct,
   appendAssociate,
   ownerGiftView,
@@ -729,6 +975,7 @@ export {
   shapeFriends,
   friendIdsOf,
   shapeShopping,
+  seasonHistory,
   shapeReceived,
   chunk,
   displayNameFrom,

@@ -208,17 +208,19 @@ export async function addProductGiftFromExtension(input: {
   url: string;
   priceCents: number | null;
   notes: string;
+  imageUrl?: string | null;
 }) {
   const data = await appSync<{ addGift: { id: string; title: string | null } }>(
-    `mutation ($listId: ID!, $title: String, $url: String, $price: Int, $notes: String) {
-      addGift(listId: $listId, kind: PRODUCT, title: $title, url: $url, price: $price, notes: $notes, quantity: 1) {
-        id title url price notes quantity
+    `mutation ($listId: ID!, $title: String, $url: String, $imageUrl: String, $price: Int, $notes: String) {
+      addGift(listId: $listId, kind: PRODUCT, title: $title, url: $url, imageUrl: $imageUrl, price: $price, notes: $notes, quantity: 1) {
+        id title url imageUrl price notes quantity
       }
     }`,
     {
       listId: input.listId,
       title: input.title || null,
       url: input.url,
+      imageUrl: input.imageUrl || null,
       price: input.priceCents,
       notes: input.notes || null,
     },

@@ -2,6 +2,8 @@ import { util, runtime } from "@aws-appsync/utils";
 
 export function request(ctx) {
   if (ctx.stash.notFound || !ctx.stash.list) runtime.earlyReturn(null);
+  const locked = seasonLockError(ctx.stash.list);
+  if (locked) util.error(locked);
   const choice = pickReserve(ctx.stash.claims || [], ctx.stash.userId);
   ctx.stash.choice = choice;
   const gift = findGift(ctx.stash.gifts, ctx.stash.giftId);
@@ -58,6 +60,19 @@ export function response(ctx) {
     ctx.stash.userId,
     ctx.stash.associateTag,
     false,
+    {},
+    ctx.stash.contributions || [],
   );
+  const list = ctx.stash.list;
+  ctx.stash.mail = {
+    action: "claim",
+    managerIds: managerIdsOf(list),
+    recipientId: list.recipientId,
+    actorId: ctx.stash.userId,
+    visibility: list.visibility,
+    giftTitle: ctx.stash.currentGift.title || "A gift",
+    purchased: false,
+    listName: list.name,
+  };
   return ctx.stash.result;
 }

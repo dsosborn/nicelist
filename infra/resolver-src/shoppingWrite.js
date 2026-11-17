@@ -8,12 +8,19 @@ export function request(ctx) {
   const field = ctx.info.fieldName;
   const me = ctx.stash.userId;
   const rows = ctx.stash.rows || [];
+  const year = shoppingActiveYear(rows, ctx.stash.profile);
+  ctx.stash.activeYear = year;
   if (field === "renameShoppingList") {
     const parsed = validateListName(ctx.args.name);
     if (parsed.error) util.error(parsed.error);
+    const listSk = rows.find((row) => row.sk === shoppingListKey(year))
+      ? shoppingListKey(year)
+      : year === 2026 && rows.find((row) => row.sk === "LIST")
+        ? "LIST"
+        : shoppingListKey(year);
     return {
       operation: "UpdateItem",
-      key: util.dynamodb.toMapValues({ shopperId: me, sk: "LIST" }),
+      key: util.dynamodb.toMapValues({ shopperId: me, sk: listSk }),
       update: {
         expression: "SET #name = :name",
         expressionNames: { "#name": "name" },
@@ -64,7 +71,13 @@ export function request(ctx) {
     if (!person(rows, ctx.args.personId)) util.error("That person isn't on your shopping list.");
     const parsed = validateGiftInput(ctx.args);
     if (parsed.error) util.error(parsed.error);
+    const existingPlan =
+      field === "updatePlannedGift"
+        ? rows.find((row) => row.personId === ctx.args.personId && row.giftId === ctx.args.id && row.sk.indexOf("PLAN#") === 0)
+        : null;
     const id = field === "updatePlannedGift" ? ctx.args.id : util.autoId();
+    const planSk = existingPlan ? existingPlan.sk : planKey(year, ctx.args.personId, id);
+    ctx.stash.planSk = planSk;
     ctx.stash.savedPlan = {
       id: id,
       personId: ctx.args.personId,
@@ -72,6 +85,7 @@ export function request(ctx) {
       title: parsed.value.title,
       url: parsed.value.url,
       price: parsed.value.price,
+      imageUrl: parsed.value.imageUrl,
       notes: parsed.value.notes,
       timingPhrase: parsed.value.timingPhrase,
       membershipPhrase: parsed.value.membershipPhrase,
@@ -85,6 +99,7 @@ export function request(ctx) {
       title: parsed.value.title,
       url: parsed.value.url,
       price: parsed.value.price,
+      imageUrl: parsed.value.imageUrl,
       notes: parsed.value.notes,
       timingPhrase: parsed.value.timingPhrase,
       membershipPhrase: parsed.value.membershipPhrase,
@@ -93,16 +108,19 @@ export function request(ctx) {
     });
     return {
       operation: "PutItem",
-      key: util.dynamodb.toMapValues({ shopperId: me, sk: "PLAN#" + ctx.args.personId + "#" + id }),
+      key: util.dynamodb.toMapValues({ shopperId: me, sk: planSk }),
       attributeValues: util.dynamodb.toMapValues(item),
     };
   }
   if (field === "setPlannedPurchased") {
+    const existingPlan = rows.find(
+      (row) => row.personId === ctx.args.personId && row.giftId === ctx.args.id && row.sk.indexOf("PLAN#") === 0,
+    );
     return {
       operation: "UpdateItem",
       key: util.dynamodb.toMapValues({
         shopperId: me,
-        sk: "PLAN#" + ctx.args.personId + "#" + ctx.args.id,
+        sk: existingPlan ? existingPlan.sk : planKey(year, ctx.args.personId, ctx.args.id),
       }),
       update: {
         expression: "SET purchased = :purchased",
@@ -115,24 +133,30 @@ export function request(ctx) {
       operation: "UpdateItem",
       key: util.dynamodb.toMapValues({
         shopperId: me,
-        sk: "AGAIN#" + ctx.args.claimId,
+        sk: againKey(year, ctx.args.claimId),
       }),
       update: {
-        expression: "SET personId = :personId, #on = :on",
+        expression: "SET personId = :personId, #on = :on, title = :title, price = :price, claimId = :claimId",
         expressionNames: { "#on": "on" },
         expressionValues: util.dynamodb.toMapValues({
           ":personId": ctx.args.personId,
           ":on": ctx.args.again,
+          ":title": ctx.args.title || "",
+          ":price": ctx.args.price == null ? 0 : ctx.args.price,
+          ":claimId": ctx.args.claimId,
         }),
       },
     };
   }
   if (field === "deletePlannedGift") {
+    const existingPlan = rows.find(
+      (row) => row.personId === ctx.args.personId && row.giftId === ctx.args.id && row.sk.indexOf("PLAN#") === 0,
+    );
     return {
       operation: "DeleteItem",
       key: util.dynamodb.toMapValues({
         shopperId: me,
-        sk: "PLAN#" + ctx.args.personId + "#" + ctx.args.id,
+        sk: existingPlan ? existingPlan.sk : planKey(year, ctx.args.personId, ctx.args.id),
       }),
     };
   }

@@ -71,7 +71,9 @@ function giftInput(input: Record<string, unknown>): api.GiftInput {
     kind: String(input.kind || "CUSTOM") as api.GiftKind,
     title: str(input, "title"),
     url: str(input, "url"),
+    imageUrl: str(input, "imageUrl") ?? null,
     price: input.price == null ? null : Number(input.price),
+    goalCents: input.goalCents == null ? null : Number(input.goalCents),
     notes: str(input, "notes"),
     quantity: input.quantity == null ? undefined : Number(input.quantity),
     timingPhrase:
@@ -86,7 +88,9 @@ const giftProps = {
   kind: { type: "string" },
   title: { type: "string" },
   url: { type: "string" },
+  imageUrl: { type: "string" },
   price: { type: "number" },
+  goalCents: { type: "number" },
   notes: { type: "string" },
   quantity: { type: "number" },
   timingPhrase: { type: "string" },
@@ -128,7 +132,7 @@ export function buildNicelistTools(options: Options): Tool[] {
       {
         name: "nicelist_read_list",
         description:
-          "Read a list this adult manages. Their own list omits shopper names.",
+          "Read a list this adult manages. Their own list omits shopper names until reveal. After reveal, a purchased gift includes the buyer's display name. Reserved slots stay unlabeled.",
         inputSchema: {
           type: "object",
           properties: { id: { type: "string" } },
@@ -148,6 +152,9 @@ export function buildNicelistTools(options: Options): Tool[] {
                   slots: null,
                   shopperSlots: null,
                   openCount: null,
+                  contributedCents: null,
+                  netCents: null,
+                  contributors: null,
                 })),
               };
             }
@@ -307,7 +314,8 @@ export function buildNicelistTools(options: Options): Tool[] {
       },
       {
         name: "nicelist_reveal",
-        description: "Reveal a list. This ends the surprise.",
+        description:
+          "Reveal a list. This ends the surprise. Afterward the owner sees which gifts were purchased and the buyer's name, for a thank-you.",
         inputSchema: {
           type: "object",
           properties: { id: { type: "string" } },
@@ -315,6 +323,81 @@ export function buildNicelistTools(options: Options): Tool[] {
         },
         annotations: { destructiveHint: true },
         execute: (input) => run(() => api.revealList(String(input.id))),
+      },
+      {
+        name: "nicelist_preview_product",
+        description:
+          "Read title, price, image, and a variant note from one product URL. A failure returns empty fields and the URL stays as pasted.",
+        inputSchema: {
+          type: "object",
+          properties: { url: { type: "string" } },
+          required: ["url"],
+        },
+        annotations: { readOnlyHint: true },
+        execute: (input) => run(() => api.previewProduct(String(input.url))),
+      },
+      {
+        name: "nicelist_chip_in",
+        description:
+          "Start a contribution toward a custom gift's goal. The owner does not see the amount until reveal.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            listId: { type: "string" },
+            giftId: { type: "string" },
+            amountCents: { type: "number" },
+          },
+          required: ["listId", "giftId", "amountCents"],
+        },
+        annotations: { destructiveHint: true },
+        execute: (input) =>
+          run(() =>
+            api.startContribution(
+              String(input.listId),
+              String(input.giftId),
+              Number(input.amountCents),
+            ),
+          ),
+      },
+      {
+        name: "nicelist_refund_contribution",
+        description: "Refund the signed-in shopper's own contribution before reveal.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            listId: { type: "string" },
+            contributionId: { type: "string" },
+          },
+          required: ["listId", "contributionId"],
+        },
+        annotations: { destructiveHint: true },
+        execute: (input) =>
+          run(() =>
+            api.refundContribution(
+              String(input.listId),
+              String(input.contributionId),
+            ),
+          ),
+      },
+      {
+        name: "nicelist_receive_balance",
+        description:
+          "After reveal, transfer the net contribution balance to the owner's connected account.",
+        inputSchema: {
+          type: "object",
+          properties: { listId: { type: "string" } },
+          required: ["listId"],
+        },
+        annotations: { destructiveHint: true },
+        execute: (input) => run(() => api.receiveBalance(String(input.listId))),
+      },
+      {
+        name: "nicelist_next_season",
+        description:
+          "Start the next wishlist year and shopping list. People and standing notes come along. Plans, claims, and the total do not.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { destructiveHint: true },
+        execute: () => run(() => api.startNextSeason()),
       },
       {
         name: "nicelist_friends",

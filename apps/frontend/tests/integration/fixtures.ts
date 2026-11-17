@@ -24,6 +24,7 @@ import {
   validateListName,
   validateShopperNote,
   ownerGiftView,
+  claimMailUserIds,
 } from "../../../../infra/domain/rules.mjs";
 
 type UserRecord = {
@@ -80,10 +81,23 @@ export class TrialFixtureWorld {
   rels: Record<string, Row[]> = {};
   shopping: Record<string, Row[]> = {};
   ratings: Record<string, Row[]> = {};
+  contributions: Record<string, Row[]> = {};
+  mail: Row[] = [];
   storeVisits: string[] = [];
   gtmUrls: string[] = [];
   associateTag = "nicelist-20";
   seq = 1;
+
+  recordClaimMail(list: Row, actorId: string, gift: Row, purchased: boolean) {
+    const friendIds = friendIdsOf(this.rels[actorId] || []);
+    const recipients = claimMailUserIds(list, friendIds, actorId).filter((id) => id !== list.recipientId);
+    this.mail.push({
+      action: purchased ? "purchased" : "reserved",
+      to: recipients,
+      giftTitle: gift.title || "A gift",
+      buyerNamed: false,
+    });
+  }
 
   nextId(prefix: string) {
     this.seq += 1;
@@ -383,6 +397,8 @@ export class TrialFixtureWorld {
             shareToken: this.nextId("tok"),
             createdAt: new Date().toISOString(),
             managerIds: [userId],
+            year: 2026,
+            readOnly: false,
           };
           this.lists.push(item);
           return reply({ createList: listSummary(item, this.profiles) });
@@ -399,6 +415,7 @@ export class TrialFixtureWorld {
               this.associateTag,
               this.pokes[list.id] || [],
               this.profiles,
+              this.contributions[list.id] || [],
             ),
           });
         }
@@ -444,6 +461,7 @@ export class TrialFixtureWorld {
               this.associateTag,
               this.pokes[list.id] || [],
               this.profiles,
+              this.contributions[list.id] || [],
             ),
           });
         }
@@ -491,6 +509,7 @@ export class TrialFixtureWorld {
         if (field === "addGift") {
           const list = this.lists.find((l) => l.id === vars.listId);
           if (!list || !canManage(list, userId)) return fail("This list wasn't found.");
+          if (list.readOnly) return fail("This season is read-only.");
           const parsed = validateGiftInput(vars);
           if (parsed.error || !parsed.value) return fail(parsed.error || "Invalid gift.");
           const giftId = this.nextId("gift");
@@ -551,6 +570,7 @@ export class TrialFixtureWorld {
               list ? this.claims[list.id] || [] : [],
               this.associateTag,
               this.profiles,
+              list ? this.contributions[list.id] || [] : [],
             ),
           });
         }
@@ -567,6 +587,7 @@ export class TrialFixtureWorld {
               this.associateTag,
               list ? this.pokes[list.id] || [] : [],
               this.profiles,
+              list ? this.contributions[list.id] || [] : [],
             ),
           });
         }
@@ -591,6 +612,7 @@ export class TrialFixtureWorld {
               target.shopperNote = noteCheck.value;
             }
           }
+          this.recordClaimMail(list, userId || "", gift, false);
           return reply({
             reserveGift: shopperGiftView(
               gift,
@@ -599,6 +621,7 @@ export class TrialFixtureWorld {
               this.associateTag,
               false,
               this.profiles,
+              this.contributions[list.id] || [],
             ),
           });
         }
@@ -621,6 +644,7 @@ export class TrialFixtureWorld {
           } else {
             claim.status = vars.purchased ? "PURCHASED" : "RESERVED";
             if (vars.note != null) claim.shopperNote = String(vars.note).trim();
+            if (vars.purchased) this.recordClaimMail(list, userId || "", gift, true);
           }
           return reply({
             [field]: shopperGiftView(
@@ -630,6 +654,7 @@ export class TrialFixtureWorld {
               this.associateTag,
               false,
               this.profiles,
+              this.contributions[list.id] || [],
             ),
           });
         }
@@ -689,6 +714,11 @@ export class TrialFixtureWorld {
           this.rels[target.sub] = (this.rels[target.sub] || []).concat([
             { sk: `FRIEND_IN#${userId}`, otherId: userId, name: this.profiles[userId!] },
           ]);
+          this.mail.push({
+            action: "friend",
+            to: [target.email],
+            from: userId,
+          });
           return reply({ sendFriendRequest: shapeFriends(this.rels[userId!]) });
         }
         if (field === "acceptFriendRequest") {
@@ -902,6 +932,89 @@ export class TrialFixtureWorld {
               true,
             ),
           });
+        }
+        if (field === "previewProduct") {
+          const url = String(vars.url || "");
+          const variant = url.includes("size=") ? "size: from the link" : null;
+          return reply({
+            previewProduct: {
+              title: "Oak mug",
+              price: 1800,
+              imageUrl: "https://images.example/mug.jpg",
+              variantNote: variant,
+            },
+          });
+        }
+        if (field === "setGiftGoal") {
+          const list = this.lists.find((l) => l.id === vars.listId);
+          const gift = (this.gifts[vars.listId] || []).find((g) => g.id === vars.id);
+          if (!list || !gift || gift.kind !== "CUSTOM") return fail("Only a custom gift can collect money.");
+          gift.goalCents = vars.goalCents;
+          return reply({ setGiftGoal: ownerGiftView(gift, [], false) });
+        }
+        if (field === "startContribution") {
+          const list = this.lists.find((l) => l.id === vars.listId);
+          const gift = list && (this.gifts[list.id] || []).find((g) => g.id === vars.giftId);
+          if (!list || !gift || gift.kind !== "CUSTOM" || !gift.goalCents) {
+            return fail("This gift isn't collecting money.");
+          }
+          const id = this.nextId("contrib");
+          this.contributions[list.id] = (this.contributions[list.id] || []).concat([
+            {
+              id,
+              sk: id,
+              giftId: gift.id,
+              shopperId: userId,
+              shopperName: this.profiles[userId!] || "Someone",
+              amountCents: vars.amountCents,
+              feeCents: 59,
+              status: "PAID",
+            },
+          ]);
+          return reply({ startContribution: { url: "https://checkout.example/pay" } });
+        }
+        if (field === "refundContribution") {
+          const list = this.lists.find((l) => l.id === vars.listId);
+          if (!list || list.revealedAt) return fail("Contributions can't be refunded after reveal.");
+          this.contributions[list.id] = (this.contributions[list.id] || []).filter(
+            (row) => row.id !== vars.contributionId || row.shopperId !== userId,
+          );
+          return reply({ refundContribution: true });
+        }
+        if (field === "startPayoutOnboarding") {
+          return reply({ startPayoutOnboarding: { url: "https://connect.example/onboard" } });
+        }
+        if (field === "receiveBalance") {
+          const list = this.lists.find((l) => l.id === vars.listId);
+          if (!list || !list.revealedAt || !canManage(list, userId)) {
+            return fail("Reveal the list before receiving the balance.");
+          }
+          return reply({ receiveBalance: true });
+        }
+        if (field === "startNextSeason") {
+          for (const list of this.lists) {
+            if (list.ownerId === userId) list.readOnly = true;
+          }
+          const next = {
+            id: this.nextId("list"),
+            ownerId: userId,
+            recipientId: userId,
+            recipientName: this.profiles[userId!] || "Someone",
+            isChild: false,
+            name: "Christmas 2027",
+            visibility: "PUBLIC",
+            shareToken: this.nextId("tok"),
+            createdAt: new Date().toISOString(),
+            managerIds: [userId],
+            year: 2027,
+            readOnly: false,
+          };
+          this.lists.push(next);
+          const rows = (this.shopping[userId!] || []).concat([
+            { sk: "LIST#2027", name: "Christmas 2027" },
+          ]);
+          this.shopping[userId!] = rows;
+          return reply({ startNextSeason: shapeShopping(rows, [], 2027) });
         }
         if (field === "rateGift" || field === "rateSuggestion") {
           const id = field === "rateGift" ? vars.giftId : vars.id;

@@ -112,6 +112,7 @@ export function PopupApp() {
   const [url, setUrl] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -130,6 +131,7 @@ export function PopupApp() {
       product.priceCents != null ? (product.priceCents / 100).toFixed(2) : "",
     );
     setNotes(product.variantNote);
+    setImageUrl(product.imageUrl);
   }
 
   useEffect(() => {
@@ -245,6 +247,7 @@ export function PopupApp() {
               url: url.trim(),
               priceCents: price ? Math.round(Number(price) * 100) : null,
               notes: notes.trim(),
+              imageUrl,
             });
             setSaved(true);
           } catch (err) {

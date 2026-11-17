@@ -11,9 +11,10 @@ Nicelist is a place to keep a Christmas wishlist and share one link with family 
 When you click the Nicelist extension button on a product page:
 
 - It reads only the active tab you opened it on (`activeTab`).
-- It reads the product title, the full page address in your address bar (including variant parameters), the price on the page, and the selected size, color, or variant when one is chosen on the page.
+- It reads the product title, the full page address in your address bar (including variant parameters), the price on the page, the product image address, and the selected size, color, or variant when one is chosen on the page.
 - It puts the selected size, color, or variant into the gift note so you can edit it before saving. If it cannot tell which option is selected, it leaves the note blank.
-- It never substitutes a canonical or parent-product URL, never uploads or stores a product image, and never adds an affiliate or partner tag when you save a gift.
+- It sends the product image address with the gift. Nicelist stores its own copy. If that copy fails, the gift is still saved.
+- It never substitutes a canonical or parent-product URL, and it never adds an affiliate or partner tag when you save a gift.
 - It signs in with the same Nicelist account as `https://nicelist.co` (email/password or Google) and shows the owner view only, so it cannot reveal who reserved or purchased a gift on your wishlist.
 
 ## Permissions justification

@@ -6,8 +6,10 @@ import { fileURLToPath } from "node:url";
 import {
   appendAssociate,
   canPoke,
+  claimMailUserIds,
   claimQuantityChange,
   deleteWindows,
+  guestGiftView,
   ideaContext,
   openListError,
   ownerGiftView,
@@ -16,6 +18,7 @@ import {
   pickReserve,
   ratingDelta,
   ratingLine,
+  seasonLockError,
   shapeGuestList,
   shapeMyList,
   shapeReceived,
@@ -71,7 +74,7 @@ test("owner payload before reveal has no claim fields", () => {
   assert.equal(list.gifts[0].slots, undefined);
 });
 
-test("owner payload after reveal shows purchased or open and hides names", () => {
+test("owner payload after reveal names the buyer of a purchased gift and hides reserved names", () => {
   const revealed = { ...adultList, revealedAt: "2026-12-26T00:00:00.000Z" };
   assert.equal(ownerSeesClaims(revealed, "ada"), true);
   const view = ownerGiftView(gift, claims, true);
@@ -79,16 +82,24 @@ test("owner payload after reveal shows purchased or open and hides names", () =>
     { index: 1, status: "OPEN" },
     { index: 2, status: "OPEN" },
   ]);
+  assert.equal(JSON.stringify(view).includes("Sam"), false);
   const purchased = ownerGiftView(
     gift,
     [{ giftId: "g1", slot: 1, status: "PURCHASED", shopperId: "sam", shopperName: "Sam", claimId: "c1" }],
     true,
   );
   assert.equal(purchased.slots[0].status, "PURCHASED");
-  assert.equal(JSON.stringify(purchased).includes("Sam"), false);
+  assert.equal(purchased.slots[0].shopperName, "Sam");
   const list = shapeMyList(revealed, [gift], claims, "ada");
   assert.equal(JSON.stringify(list).includes("Sam"), false);
   assert.equal(list.gifts[0].slots[0].status, "OPEN");
+  const bought = shapeMyList(
+    revealed,
+    [gift],
+    [{ giftId: "g1", slot: 1, status: "PURCHASED", shopperId: "sam", shopperName: "Sam", claimId: "c1" }],
+    "ada",
+  );
+  assert.equal(bought.gifts[0].slots[0].shopperName, "Sam");
 });
 
 test("shopper and managing adult payloads include who claimed the gift", () => {
@@ -271,6 +282,62 @@ test("profile names override stored snapshots and shopping total includes held w
   ];
   const shaped = shapeShopping(rows, [{ price: 4000 }]);
   assert.equal(shaped.totalCents, 6000);
+});
+
+test("contributions stay hidden from the owner until reveal and guests see progress without names", () => {
+  const funded = { ...gift, kind: "CUSTOM", url: "", goalCents: 20000 };
+  const contributions = [
+    { id: "pay1", giftId: "g1", status: "PAID", amountCents: 5000, feeCents: 175, shopperName: "Sam" },
+  ];
+  const before = ownerGiftView(funded, claims, false, { contributions });
+  assert.equal(before.goalCents, 20000);
+  assert.equal(Object.hasOwn(before, "contributedCents"), false);
+  assert.equal(JSON.stringify(before).includes("Sam"), false);
+  const after = ownerGiftView(funded, claims, true, { contributions });
+  assert.equal(after.contributedCents, 5000);
+  assert.equal(after.netCents, 4825);
+  assert.equal(after.contributors[0].displayName, "Sam");
+  const guest = guestGiftView(funded, claims, "", contributions);
+  assert.equal(guest.contributedCents, 5000);
+  assert.equal(Object.hasOwn(guest, "contributors"), false);
+  assert.equal(JSON.stringify(guest).includes("Sam"), false);
+  const shopper = shopperGiftView(funded, claims, "jo", "", false, {}, contributions);
+  assert.equal(shopper.contributors[0].displayName, "Sam");
+  assert.equal(validateGiftInput({ kind: "EXPERIENCE", title: "Tickets", timingPhrase: "ANYTIME", goalCents: 100 }).error, "Only a custom gift can collect money.");
+});
+
+test("a past season is read-only and the next shopping list keeps people without last year's plans", () => {
+  assert.equal(seasonLockError({ readOnly: true, year: 2026 }), "This season is read-only.");
+  assert.equal(seasonLockError({ readOnly: false, year: 2027 }), null);
+  const rows = [
+    { sk: "LIST#2027", name: "Christmas 2027" },
+    { sk: "PERSON#p1", personId: "p1", name: "Ada", personKind: "FRIEND", refId: "ada", standingNote: "no wool" },
+    { sk: "PLAN#2026#p1#pl1", giftId: "pl1", personId: "p1", kind: "CUSTOM", title: "Book", price: 2000, purchased: true },
+    { sk: "GIVEN#2026#p1#c1", claimId: "c1", personId: "p1", title: "Sweater", price: 4000, on: true },
+    { sk: "AGAIN#2026#c9", claimId: "c9", personId: "p1", title: "Cocoa", price: 800, on: true },
+  ];
+  const shaped = shapeShopping(rows, [], 2027);
+  assert.equal(shaped.year, 2027);
+  assert.equal(shaped.people[0].standingNote, "no wool");
+  assert.equal(shaped.plannedGifts.length, 0);
+  assert.equal(shaped.totalCents, 0);
+  assert.equal(shaped.lastYearTotalCents, 6000);
+  assert.equal(shaped.history[0].againNextYear, true);
+  assert.equal(shaped.history[0].title, "Sweater");
+});
+
+test("claim mail goes to friends and other adults, never the recipient or the buyer", () => {
+  const adult = claimMailUserIds(adultList, ["sam", "jo"], "sam");
+  assert.deepEqual(adult, ["jo"]);
+  const child = {
+    ...adultList,
+    recipientId: "kid",
+    managerIds: ["ada", "beau"],
+    visibility: "FRIENDS",
+  };
+  assert.deepEqual(claimMailUserIds(child, ["sam"], "sam"), ["ada", "beau"]);
+  const hidden = { ...adultList, visibility: "PRIVATE" };
+  assert.deepEqual(claimMailUserIds(hidden, ["sam", "jo"], "beau"), []);
 });
 
 test("resolver manifest creates profile rows on sign-in and claim writes", () => {

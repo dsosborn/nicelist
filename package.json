@@ -6,7 +6,7 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "codegen": "node infra/scripts/generate-types.mjs",
-    "test": "node --test infra/domain/rules.test.mjs && pnpm --filter @nicelist/frontend test:unit && pnpm --filter @nicelist/extension test:unit",
+    "test": "node --test infra/domain/rules.test.mjs infra/lambda/smash.test.mjs && pnpm --filter @nicelist/frontend test:unit && pnpm --filter @nicelist/extension test:unit",
     "test:unit": "pnpm --filter @nicelist/frontend test:unit && pnpm --filter @nicelist/extension test:unit",
     "test:ct": "pnpm --filter @nicelist/frontend test:ct",
     "test:e2e": "pnpm --filter @nicelist/frontend test:e2e",
